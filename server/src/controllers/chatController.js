@@ -1,4 +1,4 @@
-import { rodrigoKnowledge } from '../data/rodrigoKnowledge.js';
+import { rodrigoKnowledge, getSanitizedPublicKnowledge } from '../data/rodrigoKnowledge.js';
 import { generateChatResponse } from '../services/aiService.js';
 import {
   executeAgyPrompt,
@@ -278,6 +278,19 @@ export function suggestionsHandler(req, res) {
 }
 
 export function profileHandler(req, res) {
+  const isAdmin = req.user?.role === 'admin';
+
+  if (!isAdmin) {
+    const pub = getSanitizedPublicKnowledge();
+    return res.json({
+      profile: pub.profile,
+      skills: pub.skills,
+      experience: pub.experience,
+      projects: pub.projects,
+      infrastructure: pub.infrastructure
+    });
+  }
+
   return res.json({
     profile: rodrigoKnowledge.profile,
     skills: rodrigoKnowledge.skills,

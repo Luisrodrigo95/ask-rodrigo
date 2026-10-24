@@ -146,7 +146,7 @@ export const translations = {
       googleDesc: "Configure your Google Cloud Console Client ID to enable seamless Google Identity popup sign-in.",
       googlePlaceholder: "xxxxxxxxx.apps.googleusercontent.com",
       statusSection: "Infrastructure & Server Status",
-      vpsHost: "Host: white-stingray-87538 (Debian 13 Trixie)",
+      vpsHost: "Production Node: Hardened Debian 13 VPS (Zero-Trust Gated)",
       saveBtn: "Save Preferences",
       savedToast: "Preferences saved successfully!"
     },
@@ -312,7 +312,7 @@ export const translations = {
       googleDesc: "Configura tu Client ID de Google Cloud Console para activar el popup directo de Google Identity.",
       googlePlaceholder: "xxxxxxxxx.apps.googleusercontent.com",
       statusSection: "Estado de la Infraestructura",
-      vpsHost: "Servidor: white-stingray-87538 (Debian 13 Trixie)",
+      vpsHost: "Nodo de Producción: Debian 13 VPS Hardened (Protección Zero-Trust)",
       saveBtn: "Guardar Preferencias",
       savedToast: "¡Preferencias guardadas con éxito!"
     },

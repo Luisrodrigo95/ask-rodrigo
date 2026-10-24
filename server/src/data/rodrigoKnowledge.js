@@ -27,7 +27,21 @@ export const rodrigoKnowledge = {
     programming: ["Bash", "Python", "Node.js", "JavaScript", "PowerShell", "SQL", "C++ (native bot hooks)"],
     networking: ["Nginx (reverse proxy, HTTP/2, SSL)", "Wireshark (PCAP analysis)", "PGP/GPG encryption", "SFTP/FTPS", "nftables", "Netplan", "DNS / Cloudflare", "DDoS mitigation & PletX analysis"],
     infrastructure: ["Debian / Ubuntu Linux", "Proxmox VE / KVM hypervisors", "Docker Containers", "PM2 process manager", "Bare-metal & VPS orchestration", "Systemd daemon management"],
-    cloudAndDevOps: ["AWS (S3, EC2, RDS)", "Git & GitHub", "Jira & Agile / Scrum (Scrum Master)", "FOSSology", "Black Duck Hub", "SPDX open-source auditing", "Autosys", "Control-M"],
+    cloudAndDevOps: ["AWS (S3, EC2, RDS)", "Git & GitHub", "GitHub Actions CI/CD", "Jira & Agile / Scrum (Scrum Master)", "FOSSology", "Black Duck Hub", "SPDX open-source auditing", "Autosys", "Control-M"],
+    aiAndAutomation: [
+      "Model Context Protocol (MCP) server integration & tooling",
+      "Antigravity CLI (AGy) agent orchestration on Linux/Windows VPS",
+      "Multi-node MCP bridge management (e.g., Costalito Windows/Linux fleet)",
+      "Tri-Guard Prompt Defense & adversarial red-teaming",
+      "Automated CI/CD security scanning & deployment pipelines"
+    ],
+    securityAndHardening: [
+      "STRIDE threat modeling & risk mitigation mapping",
+      "Linux VPS hardening (nftables, SSH keys, non-root daemons, systemd sandboxing)",
+      "Role-Based Access Control (RBAC) & least privilege",
+      "Prompt Injection defense & Data Loss Prevention (DLP)",
+      "Reverse proxy header hardening & TLS 1.3 encryption"
+    ],
     methodologies: ["ITIL operational standards", "SLA management", "Root Cause Analysis (RCA)", "Agile / Scrum framework"]
   },
 
@@ -194,3 +208,46 @@ export const rodrigoKnowledge = {
     }
   ]
 };
+
+/**
+ * Hardened, sanitized public projection of Rodrigo's knowledge base.
+ * Guarantees zero leakage of internal port bindings, raw server hostnames,
+ * private IPs, or internal process topologies to public guests.
+ */
+export function getSanitizedPublicKnowledge() {
+  return {
+    profile: rodrigoKnowledge.profile,
+    skills: rodrigoKnowledge.skills,
+    experience: rodrigoKnowledge.experience,
+    projects: rodrigoKnowledge.projects.map(p => ({
+      name: p.name,
+      url: p.url.startsWith('http') ? p.url : 'Internal Hardened Daemon',
+      status: p.status,
+      // Strip internal port references for guest hardening
+      stack: p.stack.replace(/,?\s*Port\s*\d+/gi, '').trim(),
+      description: p.description
+    })),
+    infrastructure: {
+      vps: {
+        provider: "ZAP-Hosting",
+        os: "Debian 13 (Trixie) Linux x86_64",
+        specs: "4 vCPUs, 8 GB RAM, 25 GB SSD",
+        architecture: "Hardened Linux Production Node with Proxmox VE KVM virtualization",
+        securityModel: "Zero public service exposure; all traffic proxied through Nginx with TLS 1.3 and HSTS",
+        management: "Process orchestration via PM2 and systemd sandboxing"
+      },
+      workstation: {
+        type: "High-Performance Engineering Workstation",
+        capabilities: "Multi-instance container virtualization, parallel LLM agent orchestration, and C++/Rust compilation"
+      },
+      automationFleet: [
+        {
+          role: "Distributed Node Fleet Automation",
+          description: "Multi-server fleet (including Linux & Windows nodes such as the Costalito node) automated and monitored via Model Context Protocol (MCP) custom tool servers and Antigravity agents."
+        }
+      ]
+    },
+    personal: rodrigoKnowledge.personal,
+    suggestions: rodrigoKnowledge.suggestions
+  };
+}

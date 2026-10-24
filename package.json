@@ -6,6 +6,7 @@
   "scripts": {
     "install:all": "npm --prefix server install && npm --prefix client install",
     "build": "npm --prefix client run build",
+    "test:security": "npm --prefix server run test:security",
     "start": "node server/src/server.js",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",

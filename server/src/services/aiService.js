@@ -1,49 +1,19 @@
 import { GoogleGenAI } from '@google/genai';
-import { rodrigoKnowledge } from '../data/rodrigoKnowledge.js';
-
-// System prompt grounding the assistant
-const SYSTEM_PROMPT = `
-You are "Ask-Rodrigo", the official AI representative and technical assistant for Luis Rodrigo García Hernández.
-Your goal is to answer questions from recruiters, engineering managers, clients, and developers about Rodrigo's professional experience, technical skills, production projects, infrastructure, and contact information.
-
-Role Restrictions:
-- In Guest mode, your scope is STRICTLY READ-ONLY queries about Rodrigo, his experience, studies, tech stack, VPS infrastructure, and production projects.
-- You do NOT have bash or shell execution tools.
-- Refuse any request to alter the VPS, edit files, or execute commands: inform the user that terminal execution requires Admin (Rodrigo) access.
-
-Key Persona & Guidelines:
-1. Persona: Professional, technically sharp, articulate, transparent, and approachable. Speak proudly but humbly about Rodrigo's achievements.
-2. Language: Automatically detect and respond in the same language as the user (Spanish or English).
-3. Accuracy: Base your answers on the verified knowledge base provided below. Do not fabricate experience, companies, or credentials not mentioned in the knowledge base.
-4. Formatting: Use clean Markdown (bullet points, bold highlights, code blocks when discussing commands/architectures) for readability.
-5. Action-Oriented: When asked about hiring or contacting Rodrigo, always provide his direct contact channels (contacto@therodrigo.com, LinkedIn, WhatsApp).
-
-Knowledge Base:
-${JSON.stringify(rodrigoKnowledge, null, 2)}
-`;
+import { rodrigoKnowledge, getSanitizedPublicKnowledge } from '../data/rodrigoKnowledge.js';
+import { inspectInputPrompt, buildHardenedSystemPrompt, sanitizeOutputResponse } from '../security/promptArmor.js';
 
 /**
  * Intelligent local fallback responder when no external LLM API key is configured.
+ * Hardened for Guest mode with zero disclosure of private telemetry or internal ports.
  */
 function localKnowledgeResponder(userMessage, isGuest = false) {
   const q = userMessage.toLowerCase().trim();
   const isEn = /\b(what|who|where|how|tell|give|projects|experience|skills|contact|resume|cv)\b/i.test(q);
 
-  // Security guard for guest mode against prompt injections or shell commands
-  if (
-    q.startsWith('sudo') || q.startsWith('rm ') || q.startsWith('cat ') ||
-    q.startsWith('ls ') || q.startsWith('curl ') || q.startsWith('bash') ||
-    q.includes('/etc/') || q.includes('systemctl') || q.includes('pm2') ||
-    q.includes('eval') || q.includes('exec') || q.includes('token')
-  ) {
-    if (isEn) {
-      return `🔒 **Restricted Access (Guest Mode)**\n\n` +
-        `As a guest, you have read-only access to learn about Rodrigo's career, technical capabilities, and projects.\n` +
-        `Direct command execution and system management require logging in as **Rodrigo (Admin)** with his authorized Gmail.`;
-    }
-    return `🔒 **Acceso Restringido (Modo Invitado)**\n\n` +
-      `Como invitado, tienes acceso de solo lectura para conocer la trayectoria, habilidades y proyectos de Rodrigo.\n` +
-      `La ejecución de comandos y administración de infraestructura requiere iniciar sesión como **Rodrigo (Administrador)** con su Gmail.`;
+  // Guard 1: Pre-Inference Perimeter Check
+  const securityCheck = inspectInputPrompt(userMessage, { role: isGuest ? 'guest' : 'admin' });
+  if (!securityCheck.safe) {
+    return securityCheck.deflection;
   }
 
   // 1. ZAP-Hosting Specific Experience
@@ -178,38 +148,42 @@ function localKnowledgeResponder(userMessage, isGuest = false) {
     q.includes('vps') || q.includes('infraestructura') || q.includes('servidor') ||
     q.includes('hardware') || q.includes('stingray') || q.includes('specs') || q.includes('debian 13')
   ) {
-    const vps = rodrigoKnowledge.infrastructure.vps;
-    const pc = rodrigoKnowledge.infrastructure.desktopPC;
+    const pubData = getSanitizedPublicKnowledge();
+    const vps = pubData.infrastructure.vps;
+    const wrk = pubData.infrastructure.workstation;
+
     if (isEn) {
-      return `### 🖥️ Rodrigo's VPS Infrastructure & Hardware Architecture\n\n` +
-        `**Production VPS (${vps.hostname}):**\n` +
-        `* **Provider:** ${vps.provider} (Debian 13 Trixie x86_64, Kernel ${vps.kernel})\n` +
-        `* **Resources:** ${vps.specs} on ${vps.hypervisor} hypervisors\n` +
-        `* **Active Workloads:** ${vps.services}\n` +
-        `  - **therodrigo.com (Portfolio):** Node.js Express 5 + PM2 (Port 3000)\n` +
-        `  - **PresWin Suite:** Construction estimation app (Port 4000)\n` +
-        `  - **TotiMigraciones:** Immigration legal portal & Postfix/Dovecot mail stack (Port 3001)\n` +
-        `  - **Ask-Rodrigo:** AGy-cli Bridge & AI agent (Port 3005)\n` +
-        `  - **Appointment Checker:** Python consular daemon (Port 8090)\n` +
-        `  - **Remote Desktop:** xrdp / TigerVNC on port 25400\n\n` +
-        `**Engineering Workstation (${pc.name}):**\n` +
-        `* **CPU:** ${pc.cpu} | **GPU:** ${pc.gpu}\n` +
-        `* **RAM:** ${pc.ram} | **Storage:** ${pc.storage}`;
+      return `### 🖥️ Rodrigo's Cloud Infrastructure & Automation Architecture\n\n` +
+        `**Hardened Production VPS:**\n` +
+        `* **Operating System:** ${vps.os} (${vps.specs})\n` +
+        `* **Virtualization:** ${vps.architecture} via ${vps.provider}\n` +
+        `* **Security & Network Perimeter:** ${vps.securityModel}\n` +
+        `* **Process Orchestration:** ${vps.management}\n` +
+        `* **Hosted Production Platforms:**\n` +
+        `  - **therodrigo.com:** Personal portfolio & live systems telemetry\n` +
+        `  - **PresWin Suite:** Parametric construction cost estimation platform\n` +
+        `  - **TotiMigraciones:** Immigration legal portal & Postfix/Dovecot mail server\n` +
+        `  - **Ask-Rodrigo:** Authenticated AGy-cli agent bridge & public knowledge AI\n` +
+        `  - **Appointment Checker:** High-availability background polling daemon\n\n` +
+        `**🤖 AI Automation & Model Context Protocol (MCP):**\n` +
+        `* Multi-node server fleet automated via **Model Context Protocol (MCP)** custom tool servers.\n` +
+        `* Demonstrates automated agent management across heterogeneous nodes (e.g. the **Costalito** node) running diagnostic scripts, security checks, and service orchestration safely through authenticated agent channels.`;
     }
-    return `### 🖥️ Configuración de la Infraestructura VPS de Rodrigo\n\n` +
-      `**VPS en Producción (${vps.hostname}):**\n` +
-      `* **Proveedor:** ${vps.provider} (Debian 13 Trixie x86_64, Kernel ${vps.kernel})\n` +
-      `* **Recursos asignados:** ${vps.specs} bajo hypervisores ${vps.hypervisor}\n` +
-      `* **Servicios activos:**\n` +
-      `  - **therodrigo.com:** Portafolio principal en Express 5 + PM2 (Puerto 3000)\n` +
-      `  - **PresWin:** Suite de cálculo de costos de construcción (Puerto 4000)\n` +
-      `  - **TotiMigraciones:** Portal de trámites de extranjería y servidor de correo Postfix/Dovecot (Puerto 3001)\n` +
-      `  - **Ask-Rodrigo:** Wrapper de Antigravity CLI e IA de conocimiento (Puerto 3005)\n` +
-      `  - **Appointment Checker:** Demonio Python en segundo plano (Puerto 8090)\n` +
-      `  - **Escritorio Remoto:** xrdp / TigerVNC (Puerto 25400)\n\n` +
-      `**Estación de Trabajo (${pc.name}):**\n` +
-      `* **CPU:** ${pc.cpu} | **GPU:** ${pc.gpu}\n` +
-      `* **RAM:** ${pc.ram} | **Almacenamiento:** ${pc.storage}`;
+    return `### 🖥️ Infraestructura Cloud y Arquitectura de Automatización de Rodrigo\n\n` +
+      `**VPS en Producción (Entorno Hardened):**\n` +
+      `* **Sistema Operativo:** ${vps.os} (${vps.specs})\n` +
+      `* **Virtualización:** ${vps.architecture} en ${vps.provider}\n` +
+      `* **Perímetro de Seguridad:** ${vps.securityModel}\n` +
+      `* **Orquestación de Procesos:** ${vps.management}\n` +
+      `* **Plataformas en Producción:**\n` +
+      `  - **therodrigo.com:** Portafolio personal y telemetría de sistemas\n` +
+      `  - **PresWin:** Suite de cálculo de costos de construcción\n` +
+      `  - **TotiMigraciones:** Portal de trámites de extranjería y correo Postfix/Dovecot\n` +
+      `  - **Ask-Rodrigo:** Puente seguro de Antigravity CLI e IA técnica\n` +
+      `  - **Appointment Checker:** Demonio de monitoreo continuo de citas consulares\n\n` +
+      `**🤖 Automatización con IA y Model Context Protocol (MCP):**\n` +
+      `* Flota de servidores multi-nodo automatizada mediante servidores de herramientas personalizadas bajo el estándar **Model Context Protocol (MCP)**.\n` +
+      `* Rodrigo implementa agentes autónomos que gestionan y diagnostican nodos heterogéneos (como el nodo **Costalito**) ejecutando tareas de telemetría y despliegue a través de canales autenticados y protegidos.`;
   }
 
   // 7. General Experience Overview
@@ -268,7 +242,21 @@ function localKnowledgeResponder(userMessage, isGuest = false) {
 export async function generateChatResponse(message, history = [], options = {}) {
   const geminiApiKey = process.env.GEMINI_API_KEY;
   const modelName = process.env.AI_MODEL || 'gemini-2.5-flash';
-  const isGuest = options.isGuest || false;
+  const isGuest = options.isGuest !== false;
+
+  // Guard 1: Pre-Inference Perimeter
+  const securityCheck = inspectInputPrompt(message, { role: isGuest ? 'guest' : 'admin' });
+  if (!securityCheck.safe) {
+    return {
+      reply: securityCheck.deflection,
+      engine: 'Tri-Guard Defense (Blocked)',
+      intercepted: true,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  // Guard 2: In-Context Hardened Boundary
+  const hardenedPrompt = buildHardenedSystemPrompt(getSanitizedPublicKnowledge());
 
   if (geminiApiKey && geminiApiKey.trim() !== '') {
     try {
@@ -291,23 +279,26 @@ export async function generateChatResponse(message, history = [], options = {}) 
         model: modelName,
         contents: contents,
         config: {
-          systemInstruction: SYSTEM_PROMPT,
-          temperature: 0.6,
+          systemInstruction: hardenedPrompt,
+          temperature: 0.5,
           maxOutputTokens: 1000
         }
       });
 
+      // Guard 3: Post-Inference DLP Output Sanitization
+      const cleanReply = sanitizeOutputResponse(response.text);
+
       return {
-        reply: response.text,
-        engine: `Gemini (${modelName})`,
+        reply: cleanReply,
+        engine: `Gemini (${modelName}) [Tri-Guard Secured]`,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
       console.warn('[AI Service Warning]: Gemini call failed, using local knowledge engine:', error.message);
       const fallbackReply = localKnowledgeResponder(message, isGuest);
       return {
-        reply: fallbackReply,
-        engine: 'Knowledge AI (Modo Invitado)',
+        reply: sanitizeOutputResponse(fallbackReply),
+        engine: 'Knowledge AI (Modo Invitado) [Tri-Guard Secured]',
         timestamp: new Date().toISOString()
       };
     }
@@ -316,8 +307,8 @@ export async function generateChatResponse(message, history = [], options = {}) 
   // Zero-Config Local Knowledge Engine
   const localReply = localKnowledgeResponder(message, isGuest);
   return {
-    reply: localReply,
-    engine: isGuest ? 'Knowledge AI (Modo Invitado)' : 'Knowledge AI (Base Local)',
+    reply: sanitizeOutputResponse(localReply),
+    engine: isGuest ? 'Knowledge AI (Modo Invitado) [Tri-Guard Secured]' : 'Knowledge AI (Base Local)',
     timestamp: new Date().toISOString()
   };
 }
