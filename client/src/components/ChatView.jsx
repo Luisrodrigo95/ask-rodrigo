@@ -42,7 +42,8 @@ export function ChatView({
   onSelectSuggestion,
   speechEnabled,
   onSpeakText,
-  currentUser
+  currentUser,
+  t
 }) {
   const [inputText, setInputText] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
@@ -50,6 +51,7 @@ export function ChatView({
   const inputRef = useRef(null);
 
   const isAdmin = currentUser?.role === 'admin';
+  const ct = t.chat;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,24 +86,8 @@ export function ChatView({
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  // Explicit priority guest questions requested by user
-  const guestQuestions = [
-    "¿Cuál es la experiencia de Rodrigo en ZAP-Hosting?",
-    "¿Qué hizo Rodrigo durante sus 5 años en Continental Automotive?",
-    "¿Qué estudios y certificaciones tiene Rodrigo?",
-    "¿Qué stack tecnológico y lenguajes domina Rodrigo?",
-    "¿Cómo está configurada su infraestructura de servidores VPS?",
-    "¿Tiene experiencia con Linux, Nginx y Docker?"
-  ];
-
-  const adminSuggestions = [
-    "¿Cuál es el estado de la infraestructura en el VPS Debian 13?",
-    "Verifica el estado de los servicios systemd y procesos PM2",
-    "Explícame la arquitectura de TotiMigraciones, PresWin y Appointment Checker",
-    "Revisa los logs recientes de Nginx para detectar anomalías"
-  ];
-
-  const activeChips = isAdmin ? adminSuggestions : guestQuestions;
+  // Localized prompt chips
+  const activeChips = isAdmin ? t.adminSuggestions : t.guestQuestions;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-950/40 relative">
@@ -113,11 +99,11 @@ export function ChatView({
           ) : (
             <HelpCircle className="w-3.5 h-3.5 text-teal-400" />
           )}
-          <span>Sesión:</span>
+          <span>{ct.session}</span>
           <span className="text-slate-300 font-semibold truncate max-w-[200px] sm:max-w-xs">
             {isAdmin 
-              ? (conversationId || 'Nueva Sesión AGy-cli') 
-              : 'Modo Consulta Pública (Invitado)'}
+              ? (conversationId || ct.sessionNew) 
+              : ct.sessionGuest}
           </span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
@@ -127,7 +113,7 @@ export function ChatView({
               : 'bg-teal-500/10 text-teal-300 border-teal-500/20'
           }`}>
             <Cpu className="w-3 h-3" />
-            <span>{isAdmin ? 'AGy-cli Native Engine' : 'Knowledge Engine (Solo Lectura)'}</span>
+            <span>{isAdmin ? ct.engineAdmin : ct.engineGuest}</span>
           </span>
         </div>
       </div>
@@ -146,19 +132,17 @@ export function ChatView({
 
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">
-                {isAdmin ? 'Consola de Agente AGy-cli (Modo Administrador)' : 'Conoce a Luis Rodrigo García Hernández'}
+                {isAdmin ? ct.welcomeAdmin : ct.welcomeGuest}
               </h2>
               <p className="text-xs text-slate-400 mt-1 max-w-lg mx-auto leading-relaxed">
-                {isAdmin 
-                  ? 'Conectado con permisos completos a Antigravity CLI en tu VPS Debian 13. Puedes ejecutar tareas, inspeccionar proyectos y coordinar agentes.' 
-                  : 'Asistente oficial para explorar la trayectoria técnica, experiencia laboral, proyectos en producción y certificaciones de Rodrigo.'}
+                {isAdmin ? ct.welcomeAdminDesc : ct.welcomeGuestDesc}
               </p>
             </div>
 
             {/* Suggestions Grid */}
             <div className="pt-2">
               <p className="text-[11px] font-mono text-slate-500 mb-2.5 uppercase tracking-wider">
-                {isAdmin ? 'Comandos y consultas rápidas' : 'Preguntas recomendadas para conocer a Rodrigo'}
+                {isAdmin ? ct.quickChipsAdmin : ct.quickChipsGuest}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
                 {activeChips.map((text, idx) => (
@@ -213,13 +197,13 @@ export function ChatView({
                     <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-mono">
                       <span className="flex items-center gap-1 text-[10px]">
                         <Clock className="w-3 h-3" />
-                        {msg.time ? new Date(msg.time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : 'Ahora'}
+                        {msg.time ? new Date(msg.time).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : 'Now'}
                       </span>
                       <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                         {speechEnabled && onSpeakText && (
                           <button
                             onClick={() => onSpeakText(msg.content)}
-                            title="Escuchar respuesta"
+                            title={ct.listen}
                             className="p-1 rounded hover:bg-slate-800 hover:text-teal-400 transition-colors"
                           >
                             <Volume2 className="w-3.5 h-3.5" />
@@ -227,7 +211,7 @@ export function ChatView({
                         )}
                         <button
                           onClick={() => handleCopy(msg.content, index)}
-                          title="Copiar texto"
+                          title={ct.copyText}
                           className="p-1 rounded hover:bg-slate-800 hover:text-teal-400 transition-colors flex items-center gap-1"
                         >
                           {copiedIndex === index ? (
@@ -275,7 +259,7 @@ export function ChatView({
         {isGenerating && !streamingReply && (
           <div className="flex items-center gap-2 max-w-4xl mx-auto text-xs text-teal-400 font-mono py-2 px-1">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-400" />
-            <span>{streamingStatus || 'Procesando respuesta...'}</span>
+            <span>{streamingStatus || (isAdmin ? ct.processingAdmin : ct.processingGuest)}</span>
           </div>
         )}
 
@@ -294,10 +278,10 @@ export function ChatView({
             disabled={isGenerating}
             placeholder={
               isGenerating
-                ? 'Generando respuesta...'
+                ? ct.generating
                 : isAdmin
-                  ? 'Escribe tu comando o instrucción para AGy-cli. Presiona Enter para enviar.'
-                  : 'Pregunta sobre la experiencia en ZAP-Hosting, Continental, stack o proyectos de Rodrigo...'
+                  ? ct.placeholderAdmin
+                  : ct.placeholderGuest
             }
             className="w-full bg-slate-900 border border-slate-700/80 rounded-2xl pl-4 pr-12 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 resize-none transition-all"
           />

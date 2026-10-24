@@ -249,7 +249,18 @@ export function calendarDeleteHandler(req, res) {
  * Suggestions handler with the 6 priority questions requested by user.
  */
 export function suggestionsHandler(req, res) {
-  const priorityQuestions = [
+  const lang = (req.query.lang || 'en').toLowerCase();
+
+  const priorityQuestionsEn = [
+    "What is Rodrigo's experience at ZAP-Hosting?",
+    "What did Rodrigo do during his 5 years at Continental Automotive?",
+    "What degrees and certifications does Rodrigo hold?",
+    "What technical stack and languages does Rodrigo master?",
+    "How is his VPS server infrastructure configured?",
+    "Does Rodrigo have experience with Linux, Nginx, and Docker?"
+  ];
+
+  const priorityQuestionsEs = [
     "¿Cuál es la experiencia de Rodrigo en ZAP-Hosting?",
     "¿Qué hizo Rodrigo durante sus 5 años en Continental Automotive?",
     "¿Qué estudios y certificaciones tiene Rodrigo?",
@@ -258,8 +269,10 @@ export function suggestionsHandler(req, res) {
     "¿Tiene experiencia con Linux, Nginx y Docker?"
   ];
 
+  const suggestions = lang === 'es' ? priorityQuestionsEs : priorityQuestionsEn;
+
   return res.json({
-    suggestions: priorityQuestions,
+    suggestions,
     categorized: rodrigoKnowledge.suggestions || []
   });
 }

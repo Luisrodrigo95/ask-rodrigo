@@ -6,6 +6,8 @@ import { MetricsView } from './components/MetricsView';
 import { CalendarView } from './components/CalendarView';
 import { ProfileModal } from './components/ProfileModal';
 import { LoginModal } from './components/LoginModal';
+import { SettingsModal } from './components/SettingsModal';
+import { translations } from './i18n/translations';
 import { 
   fetchConversations, 
   fetchConversationDetail, 
@@ -29,8 +31,14 @@ import {
 
 export function App() {
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'metrics' | 'calendar'
-  const [currentUser, setCurrentUser] = useState(() => getStoredUser() || { role: 'guest', name: 'Invitado' });
+  
+  // Language state: English by default ('en'), persisted in localStorage
+  const [language, setLanguage] = useState(() => localStorage.getItem('ask_rodrigo_lang') || 'en');
+  const t = translations[language] || translations.en;
+
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser() || { role: 'guest', name: 'Guest' });
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
@@ -54,8 +62,10 @@ export function App() {
   const [health, setHealth] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
 
-  // Voice Speech
-  const [speechEnabled, setSpeechEnabled] = useState(false);
+  // Voice Speech & Speed Rate
+  const [speechEnabled, setSpeechEnabled] = useState(() => localStorage.getItem('ask_rodrigo_speech') === 'true');
+  const [speechRate, setSpeechRate] = useState(() => parseFloat(localStorage.getItem('ask_rodrigo_speech_rate')) || 1.0);
+  const [googleClientId, setGoogleClientId] = useState(() => localStorage.getItem('ask_rodrigo_google_client_id') || '');
 
   // 1. Initial Session Validation & Data Load
   useEffect(() => {
@@ -66,9 +76,8 @@ export function App() {
     const token = getAuthToken();
     if (!token) {
       try {
-        // Auto-initialize guest session seamlessly
-        const g = await loginAsGuest();
-        setCurrentUser({ role: 'guest', name: 'Invitado', email: null });
+        await loginAsGuest();
+        setCurrentUser({ role: 'guest', name: 'Guest', email: null });
       } catch (err) {
         console.warn('Guest login initialization error:', err);
       }
@@ -78,14 +87,12 @@ export function App() {
         if (me.authenticated && me.user) {
           setCurrentUser(me.user);
         } else {
-          // Token expired or invalid, renew as guest
           await loginAsGuest();
-          setCurrentUser({ role: 'guest', name: 'Invitado', email: null });
+          setCurrentUser({ role: 'guest', name: 'Guest', email: null });
         }
       } catch {
-        // Fallback to guest
         await loginAsGuest();
-        setCurrentUser({ role: 'guest', name: 'Invitado', email: null });
+        setCurrentUser({ role: 'guest', name: 'Guest', email: null });
       }
     }
 
@@ -140,14 +147,18 @@ export function App() {
     }
   };
 
-  const loadSuggestions = async () => {
+  const loadSuggestions = async (lang = language) => {
     try {
-      const s = await fetchSuggestions();
+      const s = await fetchSuggestions(lang);
       setSuggestions(s.suggestions || []);
     } catch (err) {
       console.warn('Failed to load suggestions:', err);
     }
   };
+
+  useEffect(() => {
+    loadSuggestions(language);
+  }, [language]);
 
   const loadMetrics = async () => {
     if (currentUser?.role !== 'admin') return;
@@ -177,7 +188,7 @@ export function App() {
   // 2. Authentication Handlers
   const handleGuestLogin = async () => {
     await loginAsGuest();
-    setCurrentUser({ role: 'guest', name: 'Invitado', email: null });
+    setCurrentUser({ role: 'guest', name: 'Guest', email: null });
     setActiveConversationId(null);
     setMessages([]);
     loadSuggestions();
@@ -202,7 +213,29 @@ export function App() {
     await handleGuestLogin();
   };
 
-  // 3. Select / Load Conversation
+  // 3. Settings Handlers
+  const handleChangeLanguage = (newLang) => {
+    setLanguage(newLang);
+    localStorage.setItem('ask_rodrigo_lang', newLang);
+  };
+
+  const handleToggleSpeech = () => {
+    const next = !speechEnabled;
+    setSpeechEnabled(next);
+    localStorage.setItem('ask_rodrigo_speech', String(next));
+  };
+
+  const handleChangeSpeechRate = (rate) => {
+    setSpeechRate(rate);
+    localStorage.setItem('ask_rodrigo_speech_rate', String(rate));
+  };
+
+  const handleSaveGoogleClientId = (id) => {
+    setGoogleClientId(id);
+    localStorage.setItem('ask_rodrigo_google_client_id', id);
+  };
+
+  // 4. Select / Load Conversation
   const handleSelectConversation = async (id) => {
     if (isGenerating) return;
     setActiveConversationId(id);
@@ -233,11 +266,11 @@ export function App() {
       }
       loadConversations();
     } catch (err) {
-      alert('Error eliminando sesión: ' + err.message);
+      alert('Error archiving session: ' + err.message);
     }
   };
 
-  // 4. Send Message via Stream
+  // 5. Send Message via Stream
   const handleSendMessage = (text) => {
     if (!text || isGenerating) return;
 
@@ -252,8 +285,8 @@ export function App() {
     setStreamingReply('');
     setStreamingStatus(
       currentUser?.role === 'admin'
-        ? 'Iniciando proceso en Antigravity CLI...'
-        : 'Consultando base de conocimientos de Rodrigo...'
+        ? t.chat.processingAdmin
+        : t.chat.processingGuest
     );
 
     let accumulatedText = '';
@@ -267,7 +300,7 @@ export function App() {
         }
       },
       onStatus: (data) => {
-        setStreamingStatus(data.message || 'Ejecutando...');
+        setStreamingStatus(data.message || 'Processing...');
       },
       onDelta: (chunk) => {
         accumulatedText += chunk;
@@ -276,7 +309,7 @@ export function App() {
       onDone: (meta) => {
         setIsGenerating(false);
         setStreamingStatus('');
-        const finalReply = accumulatedText || 'Consulta finalizada.';
+        const finalReply = accumulatedText || 'Completed.';
         setMessages((prev) => [
           ...prev,
           {
@@ -302,7 +335,7 @@ export function App() {
           ...prev,
           {
             role: 'assistant',
-            content: `⚠️ **Error procesando respuesta**: ${errMsg}`,
+            content: `⚠️ **${t.chat.errorPrefix}**: ${errMsg}`,
             time: new Date().toISOString()
           }
         ]);
@@ -311,18 +344,18 @@ export function App() {
     });
   };
 
-  // 5. Speech Synthesis
+  // 6. Speech Synthesis with language and rate support
   const speakText = (text) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const clean = text.replace(/[*_#`[\]()]/g, ' ').slice(0, 400);
     const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.lang = 'es-ES';
-    utterance.rate = 1.05;
+    utterance.lang = language === 'es' ? 'es-ES' : 'en-US';
+    utterance.rate = speechRate || 1.0;
     window.speechSynthesis.speak(utterance);
   };
 
-  // 6. Calendar Handlers
+  // 7. Calendar Handlers
   const handleCreateEvent = async (eventData) => {
     if (currentUser?.role !== 'admin') {
       setIsLoginOpen(true);
@@ -332,7 +365,7 @@ export function App() {
       await createCalendarEvent(eventData);
       loadCalendar();
     } catch (err) {
-      alert('Error creando evento: ' + err.message);
+      alert('Error creating event: ' + err.message);
     }
   };
 
@@ -345,7 +378,7 @@ export function App() {
       await removeCalendarEvent(id);
       loadCalendar();
     } catch (err) {
-      alert('Error eliminando evento: ' + err.message);
+      alert('Error deleting event: ' + err.message);
     }
   };
 
@@ -357,12 +390,14 @@ export function App() {
         onSelectTab={setActiveTab}
         onOpenProfile={() => setIsProfileOpen(true)}
         speechEnabled={speechEnabled}
-        onToggleSpeech={() => setSpeechEnabled(!speechEnabled)}
+        onToggleSpeech={handleToggleSpeech}
         health={health}
         metricsLoading={metricsLoading}
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={handleLogout}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        t={t}
       />
 
       {/* Main Workspace */}
@@ -378,6 +413,7 @@ export function App() {
               loading={conversationsLoading}
               currentUser={currentUser}
               onOpenLogin={() => setIsLoginOpen(true)}
+              t={t}
             />
             <ChatView
               conversationId={activeConversationId}
@@ -391,6 +427,7 @@ export function App() {
               speechEnabled={speechEnabled}
               onSpeakText={speakText}
               currentUser={currentUser}
+              t={t}
             />
           </>
         ) : activeTab === 'metrics' ? (
@@ -398,6 +435,7 @@ export function App() {
             metrics={metrics}
             loading={metricsLoading}
             onRefresh={loadMetrics}
+            t={t}
           />
         ) : (
           <CalendarView
@@ -406,6 +444,7 @@ export function App() {
             onDeleteEvent={handleDeleteEvent}
             loading={calendarLoading}
             currentUser={currentUser}
+            t={t}
           />
         )}
       </div>
@@ -425,6 +464,24 @@ export function App() {
         onAdminLogin={handleAdminLogin}
         onGoogleLogin={handleGoogleLogin}
         currentRole={currentUser?.role}
+        t={t}
+      />
+
+      {/* Preferences & Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        currentLanguage={language}
+        onChangeLanguage={handleChangeLanguage}
+        speechEnabled={speechEnabled}
+        onToggleSpeech={handleToggleSpeech}
+        speechRate={speechRate}
+        onChangeSpeechRate={handleChangeSpeechRate}
+        googleClientId={googleClientId}
+        onSaveGoogleClientId={handleSaveGoogleClientId}
+        health={health}
+        currentUser={currentUser}
+        t={t}
       />
     </div>
   );

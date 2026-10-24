@@ -13,13 +13,28 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
-export function MetricsView({ metrics, loading, onRefresh }) {
+export function MetricsView({ metrics, loading, onRefresh, t }) {
+  const mt = t ? t.metrics : {
+    title: 'Live Server Metrics & Health',
+    subtitle: 'Real-time telemetry from white-stingray-87538 (Debian 13 Trixie x86_64)',
+    refresh: 'Refresh Telemetry',
+    loading: 'Fetching telemetry data...',
+    cpuLoad: 'CPU Utilization',
+    ramUsage: 'Memory (RAM)',
+    diskStorage: 'SSD Storage',
+    uptime: 'System Uptime',
+    processes: 'PM2 Application Services',
+    systemd: 'Critical Systemd Daemons',
+    statusOnline: 'Online',
+    cores: 'cores'
+  };
+
   if (!metrics && loading) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-400">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs font-mono">Consultando métricas en vivo del VPS...</p>
+          <p className="text-xs font-mono">{mt.loading}</p>
         </div>
       </div>
     );
@@ -28,12 +43,12 @@ export function MetricsView({ metrics, loading, onRefresh }) {
   if (!metrics) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 text-center text-slate-400">
-        <p className="text-xs">No se pudieron cargar las métricas.</p>
+        <p className="text-xs">Failed to load server telemetry.</p>
         <button
           onClick={onRefresh}
           className="mt-3 px-3 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-medium"
         >
-          Reintentar
+          {mt.refresh}
         </button>
       </div>
     );
@@ -48,10 +63,10 @@ export function MetricsView({ metrics, loading, onRefresh }) {
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Activity className="w-5 h-5 text-teal-400" />
-            <span>Monitor de Infraestructura VPS</span>
+            <span>{mt.title}</span>
           </h2>
           <p className="text-xs text-slate-400 font-mono mt-0.5">
-            {os.hostname} ({os.distro}) • Uptime: {os.uptimeHours} horas
+            {os.hostname} ({os.distro}) • {mt.uptime}: {os.uptimeHours} h
           </p>
         </div>
 
@@ -61,7 +76,7 @@ export function MetricsView({ metrics, loading, onRefresh }) {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-200 transition-all"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-teal-400' : ''}`} />
-          <span>Actualizar</span>
+          <span>{mt.refresh}</span>
         </button>
       </div>
 
@@ -72,16 +87,16 @@ export function MetricsView({ metrics, loading, onRefresh }) {
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
               <Cpu className="w-4 h-4 text-teal-400" />
-              <span>Procesador CPU</span>
+              <span>{mt.cpuLoad}</span>
             </span>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-teal-300">
-              {cpu.cores} Cores
+              {cpu.cores} {mt.cores}
             </span>
           </div>
 
           <div>
             <div className="text-xl font-bold font-mono text-white">
-              Carga: {cpu.loadavg['1m']}
+              Load: {cpu.loadavg['1m']}
             </div>
             <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate" title={cpu.model}>
               {cpu.model}
@@ -89,7 +104,7 @@ export function MetricsView({ metrics, loading, onRefresh }) {
           </div>
 
           <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span>Promedios:</span>
+            <span>Averages:</span>
             <span>1m: {cpu.loadavg['1m']} | 5m: {cpu.loadavg['5m']} | 15m: {cpu.loadavg['15m']}</span>
           </div>
         </div>
@@ -99,10 +114,10 @@ export function MetricsView({ metrics, loading, onRefresh }) {
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-cyan-400" />
-              <span>Memoria RAM</span>
+              <span>{mt.ramUsage}</span>
             </span>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-cyan-300">
-              {memory.usedPercent}% en uso
+              {memory.usedPercent}%
             </span>
           </div>
 
@@ -121,8 +136,8 @@ export function MetricsView({ metrics, loading, onRefresh }) {
           </div>
 
           <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span>Disponible:</span>
-            <span className="text-emerald-400">{memory.freeMb} MB libres</span>
+            <span>Available:</span>
+            <span className="text-emerald-400">{memory.freeMb} MB free</span>
           </div>
         </div>
 
@@ -131,10 +146,10 @@ export function MetricsView({ metrics, loading, onRefresh }) {
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
               <HardDrive className="w-4 h-4 text-emerald-400" />
-              <span>Disco SSD (NVMe)</span>
+              <span>{mt.diskStorage}</span>
             </span>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-emerald-300">
-              {disk.percent} ocupado
+              {disk.percent}
             </span>
           </div>
 
@@ -151,8 +166,8 @@ export function MetricsView({ metrics, loading, onRefresh }) {
           </div>
 
           <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span>Espacio libre:</span>
-            <span className="text-emerald-400">{disk.freeGb} GB libres</span>
+            <span>Free space:</span>
+            <span className="text-emerald-400">{disk.freeGb} GB free</span>
           </div>
         </div>
       </div>
@@ -161,7 +176,7 @@ export function MetricsView({ metrics, loading, onRefresh }) {
       <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
         <h3 className="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-teal-400" />
-          <span>Servicios del Sistema (systemd)</span>
+          <span>{mt.systemd}</span>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -194,7 +209,7 @@ export function MetricsView({ metrics, loading, onRefresh }) {
         <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
           <h3 className="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-2">
             <Zap className="w-4 h-4 text-amber-400" />
-            <span>Aplicaciones en Producción (PM2)</span>
+            <span>{mt.processes}</span>
           </h3>
 
           <div className="overflow-x-auto">
@@ -202,11 +217,11 @@ export function MetricsView({ metrics, loading, onRefresh }) {
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400">
                   <th className="pb-2">ID</th>
-                  <th className="pb-2">Nombre</th>
-                  <th className="pb-2">Estado</th>
+                  <th className="pb-2">Process</th>
+                  <th className="pb-2">Status</th>
                   <th className="pb-2">CPU</th>
-                  <th className="pb-2">Memoria</th>
-                  <th className="pb-2">Reinicios</th>
+                  <th className="pb-2">Memory</th>
+                  <th className="pb-2">Restarts</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">

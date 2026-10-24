@@ -13,7 +13,8 @@ import {
   Shield,
   Lock,
   LogOut,
-  LogIn
+  LogIn,
+  Settings
 } from 'lucide-react';
 
 export function Header({ 
@@ -26,9 +27,12 @@ export function Header({
   metricsLoading,
   currentUser,
   onOpenLogin,
-  onLogout
+  onLogout,
+  onOpenSettings,
+  t
 }) {
   const isAdmin = currentUser?.role === 'admin';
+  const ht = t.header;
 
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-30 px-4 py-2.5">
@@ -52,26 +56,26 @@ export function Header({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
-                Ask-Rodrigo
+                {ht.title}
                 {isAdmin ? (
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono font-medium flex items-center gap-1">
                     <span>👑</span>
-                    <span>Rodrigo (Admin)</span>
+                    <span>{ht.adminBadge}</span>
                   </span>
                 ) : (
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-mono font-medium flex items-center gap-1">
                     <span>👤</span>
-                    <span>Modo Invitado</span>
+                    <span>{ht.guestBadge}</span>
                   </span>
                 )}
               </h1>
             </div>
             <p className="text-[11px] text-slate-400 flex items-center gap-1.5 font-mono">
               <Server className="w-3 h-3 text-teal-400" />
-              <span>Debian 13 VPS</span>
+              <span>{ht.vpsLabel}</span>
               <span className="text-slate-600">•</span>
               <span className={isAdmin ? 'text-emerald-400' : 'text-teal-400'}>
-                {isAdmin ? 'AGy-cli Native Bridge' : 'Knowledge Engine (Solo Lectura)'}
+                {isAdmin ? ht.engineStatusAdmin : ht.engineStatusGuest}
               </span>
             </p>
           </div>
@@ -88,7 +92,7 @@ export function Header({
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>Chat Agente</span>
+            <span>{ht.tabChat}</span>
           </button>
 
           <button
@@ -99,7 +103,7 @@ export function Header({
                 onOpenLogin('admin');
               }
             }}
-            title={!isAdmin ? 'Requiere iniciar sesión como Rodrigo' : 'Métricas del servidor'}
+            title={!isAdmin ? ht.lockedNotice : ht.tabMetrics}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
               activeTab === 'metrics'
                 ? 'bg-teal-600 text-white shadow-sm'
@@ -109,7 +113,7 @@ export function Header({
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            <span>Servidor & Métricas</span>
+            <span>{ht.tabMetrics}</span>
             {!isAdmin && <Lock className="w-3 h-3 text-amber-400/80 ml-0.5" />}
           </button>
 
@@ -122,7 +126,7 @@ export function Header({
             }`}
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span>Calendario & Citas</span>
+            <span>{ht.tabCalendar}</span>
           </button>
         </nav>
 
@@ -131,7 +135,7 @@ export function Header({
           {/* Audio speech toggle */}
           <button
             onClick={onToggleSpeech}
-            title={speechEnabled ? 'Desactivar lectura por voz' : 'Activar lectura por voz'}
+            title={speechEnabled ? ht.speechDisable : ht.speechEnable}
             className={`p-2 rounded-lg border text-sm transition-all ${
               speechEnabled
                 ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
@@ -141,24 +145,33 @@ export function Header({
             {speechEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
+          {/* Settings Button */}
+          <button
+            onClick={onOpenSettings}
+            title={ht.settingsBtn}
+            className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-400 hover:text-teal-400 text-sm transition-all"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+
           {/* Quick CV profile drawer button */}
           <button
             onClick={onOpenProfile}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition-all"
           >
             <User className="w-3.5 h-3.5 text-teal-400" />
-            <span className="hidden sm:inline">Perfil / CV</span>
+            <span className="hidden sm:inline">{ht.profileBtn}</span>
           </button>
 
           {/* Login / Switch Account Button */}
           {isAdmin ? (
             <button
               onClick={onLogout}
-              title="Cerrar sesión de Administrador"
+              title={ht.adminLogout}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-medium transition-all"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Salir</span>
+              <span className="hidden sm:inline">{ht.adminLogout}</span>
             </button>
           ) : (
             <button
@@ -166,7 +179,7 @@ export function Header({
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white text-xs font-medium transition-all shadow-sm"
             >
               <LogIn className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Soy Rodrigo</span>
+              <span className="hidden sm:inline">{ht.iamRodrigo}</span>
             </button>
           )}
 
@@ -175,7 +188,7 @@ export function Header({
             href="https://therodrigo.com"
             target="_blank"
             rel="noopener noreferrer"
-            title="Abrir therodrigo.com"
+            title={ht.openPortfolio}
             className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-400 hover:text-teal-400 text-xs transition-all"
           >
             <ExternalLink className="w-4 h-4" />

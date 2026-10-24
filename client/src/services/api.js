@@ -302,8 +302,8 @@ export async function removeCalendarEvent(eventId) {
 /**
  * Profile & Suggestions
  */
-export async function fetchSuggestions() {
-  const response = await fetch(`${API_BASE}/suggestions`, {
+export async function fetchSuggestions(lang = 'en') {
+  const response = await fetch(`${API_BASE}/suggestions?lang=${encodeURIComponent(lang)}`, {
     headers: getAuthHeaders()
   });
   if (!response.ok) throw new Error('Failed to fetch suggestions');
