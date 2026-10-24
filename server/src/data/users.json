@@ -18,5 +18,15 @@
     "picture": null,
     "addedAt": "2026-10-24T19:27:00.000Z",
     "lastLogin": null
+  },
+  {
+    "email": "eduardo.larios.fdz@gmail.com",
+    "name": "Eduardo Larios",
+    "role": "admin",
+    "isOwner": false,
+    "canEditProjects": false,
+    "picture": null,
+    "addedAt": "2026-10-24T23:40:26.110Z",
+    "lastLogin": null
   }
 ]
