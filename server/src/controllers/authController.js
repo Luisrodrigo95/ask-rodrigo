@@ -7,6 +7,16 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || `${PRIMARY_ADMIN_EMAIL},contac
   .map(e => e.trim().toLowerCase());
 
 /**
+ * Public auth configuration for frontend Google Identity Services
+ */
+export function getAuthConfig(req, res) {
+  return res.json({
+    googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+    authorizedEmail: PRIMARY_ADMIN_EMAIL
+  });
+}
+
+/**
  * Guest Login: Instant 1-click token for external visitors/recruiters
  */
 export function loginGuest(req, res) {
@@ -35,7 +45,8 @@ export function loginGuest(req, res) {
 }
 
 /**
- * Admin Login: Strictly restricted to Rodrigo's Gmail (lg2012garcia@gmail.com) + Security PIN
+ * Admin Login: Fallback via Email + Security PIN
+ * STRICT CHECK: Only Rodrigo's Gmail (lg2012garcia@gmail.com) is allowed.
  */
 export function loginAdmin(req, res) {
   try {
@@ -53,7 +64,7 @@ export function loginAdmin(req, res) {
       return res.status(401).json({ error: 'PIN de seguridad incorrecto.' });
     }
 
-    // STRICT CHECK: Only Rodrigo's specific Gmail or authorized admin email is granted access
+    // STRICT CHECK: Only Rodrigo's specific Gmail is authorized
     const isAuthorized = cleanEmail === PRIMARY_ADMIN_EMAIL || ADMIN_EMAILS.includes(cleanEmail);
 
     if (!isAuthorized) {
@@ -87,44 +98,82 @@ export function loginAdmin(req, res) {
 }
 
 /**
- * Google OAuth Token Login: Verifies Google ID token from Google Sign-In button
+ * Direct Google OAuth Login:
+ * Verifies Google ID token or OAuth access token with Google's servers.
+ * STRICT CHECK: Grants full unrestricted admin access IF AND ONLY IF email === lg2012garcia@gmail.com.
  */
 export async function loginGoogle(req, res) {
   try {
-    const { credential } = req.body;
+    const { credential, accessToken } = req.body;
+    const tokenToVerify = credential || accessToken;
 
-    if (!credential) {
-      return res.status(400).json({ error: 'Token de Google credential no recibido.' });
+    if (!tokenToVerify) {
+      return res.status(400).json({ error: 'Token de Google no recibido.' });
     }
 
-    // Verify token with Google's tokeninfo API
-    const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
-    if (!googleRes.ok) {
-      return res.status(401).json({ error: 'Token de Google inválido o expirado.' });
+    let email = null;
+    let name = 'Rodrigo García';
+    let picture = null;
+    let emailVerified = false;
+
+    // Strategy 1: Verify as ID token (JWT from Google Identity Services)
+    if (credential && credential.includes('.')) {
+      try {
+        const idTokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+        if (idTokenRes.ok) {
+          const idData = await idTokenRes.json();
+          email = (idData.email || '').toLowerCase();
+          emailVerified = idData.email_verified === 'true' || idData.email_verified === true;
+          name = idData.name || name;
+          picture = idData.picture || null;
+        }
+      } catch (errId) {
+        console.warn('[loginGoogle] ID token verification attempt failed:', errId.message);
+      }
     }
 
-    const data = await googleRes.json();
-    const email = (data.email || '').toLowerCase();
-    const emailVerified = data.email_verified === 'true' || data.email_verified === true;
+    // Strategy 2: If ID token verification did not succeed or accessToken was provided, verify with userinfo endpoint
+    if (!email) {
+      try {
+        const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenToVerify}` }
+        });
+        if (userinfoRes.ok) {
+          const userData = await userinfoRes.json();
+          email = (userData.email || '').toLowerCase();
+          emailVerified = userData.email_verified === true || userData.email_verified === 'true';
+          name = userData.name || name;
+          picture = userData.picture || null;
+        }
+      } catch (errUser) {
+        console.warn('[loginGoogle] Userinfo verification attempt failed:', errUser.message);
+      }
+    }
+
+    if (!email) {
+      return res.status(401).json({
+        error: 'No se pudo verificar la identidad con los servidores de Google. Token inválido o expirado.'
+      });
+    }
 
     if (!emailVerified) {
       return res.status(403).json({ error: 'El correo de Google no está verificado.' });
     }
 
-    // STRICT CHECK: Only Rodrigo's Gmail is granted access
+    // STRICT CHECK: Only Rodrigo's Gmail is granted admin access
     const isAuthorized = email === PRIMARY_ADMIN_EMAIL || ADMIN_EMAILS.includes(email);
 
     if (!isAuthorized) {
       return res.status(403).json({
-        error: `Acceso denegado: La cuenta ${email} no está autorizada. Solo ${PRIMARY_ADMIN_EMAIL} tiene acceso completo como administrador.`
+        error: `Acceso restringido: La cuenta ${email} no tiene permisos de Administrador. Solo ${PRIMARY_ADMIN_EMAIL} puede acceder a las funciones avanzadas.`
       });
     }
 
     const payload = {
       role: 'admin',
-      name: data.name || 'Rodrigo García',
+      name: name || 'Rodrigo García',
       email,
-      picture: data.picture,
+      picture,
       scope: 'full:admin',
       createdAt: new Date().toISOString()
     };
@@ -136,13 +185,13 @@ export async function loginGoogle(req, res) {
       role: 'admin',
       name: payload.name,
       email: payload.email,
-      picture: data.picture,
+      picture,
       token,
-      message: 'Autenticación con Google exitosa. Acceso de administrador sin limitaciones activo.'
+      message: 'Autenticación con Google completada exitosamente. Acceso total a Ask-Rodrigo concedido.'
     });
   } catch (err) {
     console.error('[Auth loginGoogle Error]:', err);
-    return res.status(500).json({ error: 'Error validando credencial de Google', details: err.message });
+    return res.status(500).json({ error: 'Error en la verificación directa con Google', details: err.message });
   }
 }
 

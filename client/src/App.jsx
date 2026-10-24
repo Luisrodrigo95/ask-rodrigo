@@ -22,6 +22,7 @@ import {
   getAuthToken,
   loginAsGuest,
   loginAsAdmin,
+  loginWithGoogle,
   fetchMe,
   logout
 } from './services/api';
@@ -185,6 +186,13 @@ export function App() {
   const handleAdminLogin = async (email, pin) => {
     const data = await loginAsAdmin(email, pin);
     setCurrentUser({ role: 'admin', name: data.name, email: data.email });
+    loadConversations();
+    loadMetrics();
+  };
+
+  const handleGoogleLogin = async (credential, accessToken) => {
+    const data = await loginWithGoogle(credential, accessToken);
+    setCurrentUser({ role: 'admin', name: data.name, email: data.email, picture: data.picture });
     loadConversations();
     loadMetrics();
   };
@@ -415,6 +423,7 @@ export function App() {
         onClose={() => setIsLoginOpen(false)}
         onGuestLogin={handleGuestLogin}
         onAdminLogin={handleAdminLogin}
+        onGoogleLogin={handleGoogleLogin}
         currentRole={currentUser?.role}
       />
     </div>

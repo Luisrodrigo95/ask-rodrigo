@@ -17,7 +17,8 @@ import {
   loginGuest,
   loginAdmin,
   loginGoogle,
-  getMe
+  getMe,
+  getAuthConfig
 } from '../controllers/authController.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
@@ -27,6 +28,7 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // --- Auth Endpoints ---
+router.get('/auth/config', getAuthConfig);
 router.post('/auth/guest', loginGuest);
 router.post('/auth/admin-login', loginAdmin);
 router.post('/auth/google', loginGoogle);

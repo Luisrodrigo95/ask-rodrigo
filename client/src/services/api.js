@@ -81,11 +81,11 @@ export async function loginAsAdmin(email, pin) {
   return data;
 }
 
-export async function loginWithGoogle(credential) {
+export async function loginWithGoogle(credential, accessToken = null) {
   const response = await fetch(`${API_BASE}/auth/google`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ credential })
+    body: JSON.stringify({ credential, accessToken })
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -95,6 +95,16 @@ export async function loginWithGoogle(credential) {
   setAuthToken(data.token);
   setStoredUser({ role: 'admin', name: data.name, email: data.email, picture: data.picture });
   return data;
+}
+
+export async function fetchAuthConfig() {
+  try {
+    const res = await fetch(`${API_BASE}/auth/config`);
+    if (!res.ok) return { googleClientId: '', authorizedEmail: 'lg2012garcia@gmail.com' };
+    return await res.json();
+  } catch {
+    return { googleClientId: '', authorizedEmail: 'lg2012garcia@gmail.com' };
+  }
 }
 
 export async function fetchMe() {
