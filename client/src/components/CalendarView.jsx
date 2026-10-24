@@ -80,6 +80,7 @@ export function CalendarView({
   ];
 
   const defaultGroups = [
+    { id: 'askrodrigo', name: 'Ask-Rodrigo (AGy Suite)' },
     { id: 'portfolio', name: 'therodrigo.com (Portfolio)' },
     { id: 'preswin', name: 'PresWin Cost Estimator' },
     { id: 'totimigraciones', name: 'TotiMigraciones Portal' },

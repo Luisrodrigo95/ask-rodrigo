@@ -91,6 +91,17 @@ export function ChatView({
     inputRef.current?.focus();
   }, [conversationId]);
 
+  useEffect(() => {
+    const handleInsertPrompt = (e) => {
+      if (e.detail?.text) {
+        setInputText((prev) => (prev ? `${prev}\n\n${e.detail.text}` : e.detail.text));
+        setTimeout(() => inputRef.current?.focus(), 50);
+      }
+    };
+    window.addEventListener('insert_chat_prompt', handleInsertPrompt);
+    return () => window.removeEventListener('insert_chat_prompt', handleInsertPrompt);
+  }, []);
+
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -162,6 +173,7 @@ export function ChatView({
 
   const workspaceOptions = [
     { id: 'normal', label: tw.normal, path: '/home/bombi' },
+    { id: 'askrodrigo', label: tw.askrodrigo || 'Ask-Rodrigo', path: '/var/www/ask-rodrigo' },
     { id: 'portfolio', label: tw.portfolio, path: '/var/www/my-portfolio' },
     { id: 'preswin', label: tw.preswin, path: '/var/www/preswin' },
     { id: 'totimigraciones', label: tw.totimigraciones, path: '/var/www/totimigraciones' },

@@ -27,6 +27,11 @@ import {
   uploadFileHandler,
   listUploadsHandler
 } from '../controllers/uploadController.js';
+import {
+  getNotesHandler,
+  saveNoteHandler,
+  deleteNoteHandler
+} from '../controllers/notesController.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -56,6 +61,11 @@ router.get('/conversations/:id', requireAdmin, conversationDetailHandler);
 router.delete('/conversations/:id', requireAdmin, deleteConversationHandler);
 router.get('/metrics', requireAdmin, metricsHandler);
 router.get('/subagents', requireAdmin, subagentsHandler);
+
+// --- Admin-Only Notes & Prompts Scratchpad ---
+router.get('/notes', requireAdmin, getNotesHandler);
+router.post('/notes', requireAdmin, saveNoteHandler);
+router.delete('/notes/:id', requireAdmin, deleteNoteHandler);
 
 // --- Calendar Endpoints (Read: All, Write: Admin Only) ---
 router.get('/calendar', calendarGetHandler);

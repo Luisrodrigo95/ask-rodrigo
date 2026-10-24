@@ -78,6 +78,8 @@ export async function chatHandler(req, res) {
 
 const WORKSPACE_MAP = {
   normal: '/home/bombi',
+  askrodrigo: '/var/www/ask-rodrigo',
+  'ask-rodrigo': '/var/www/ask-rodrigo',
   portfolio: '/var/www/my-portfolio',
   preswin: '/var/www/preswin',
   totimigraciones: '/var/www/totimigraciones',

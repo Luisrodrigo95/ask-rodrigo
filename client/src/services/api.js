@@ -392,3 +392,36 @@ export async function fetchSubagents() {
   if (!response.ok) throw new Error('Error al obtener lista de subagentes');
   return await response.json();
 }
+
+/**
+ * Admin Notes & Prompts Scratchpad
+ */
+export async function fetchNotes() {
+  const response = await fetch(`${API_BASE}/notes`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) throw new Error('Error al obtener notas');
+  return await response.json();
+}
+
+export async function saveAdminNote(noteData) {
+  const response = await fetch(`${API_BASE}/notes`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(noteData)
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al guardar nota');
+  }
+  return await response.json();
+}
+
+export async function deleteAdminNote(id) {
+  const response = await fetch(`${API_BASE}/notes/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) throw new Error('Error al eliminar nota');
+  return await response.json();
+}

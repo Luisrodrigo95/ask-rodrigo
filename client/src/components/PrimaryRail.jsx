@@ -15,7 +15,8 @@ import {
   Clock,
   ExternalLink,
   ShieldCheck,
-  LogOut
+  LogOut,
+  FileText
 } from 'lucide-react';
 
 export function PrimaryRail({
@@ -24,6 +25,7 @@ export function PrimaryRail({
   isCollapsed,
   onToggleCollapse,
   onOpenProfile,
+  onOpenNotes,
   onOpenSettings,
   currentUser,
   onOpenLogin,
@@ -51,66 +53,77 @@ export function PrimaryRail({
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const navItems = [
-    {
-      id: 'chat',
-      label: tr.chats,
-      icon: MessageSquare,
-      active: activeTab === 'chat',
-      onClick: () => onSelectTab('chat'),
-      badge: null
-    },
-    {
-      id: 'waiting',
-      label: tr.waiting,
-      icon: BellRing,
-      active: false,
-      onClick: () => onSelectTab('chat'),
-      badge: '0'
-    },
-    {
-      id: 'calendar',
-      label: tr.calendar,
-      icon: CalendarDays,
-      active: activeTab === 'calendar',
-      onClick: () => onSelectTab('calendar'),
-      badge: null
-    },
-    {
-      id: 'tasks',
-      label: tr.tasks,
-      icon: SquareCheckBig,
-      active: false,
-      onClick: () => onSelectTab('calendar'),
-      badge: null
-    },
-    {
-      id: 'notes',
-      label: tr.notes,
-      icon: StickyNote,
-      active: false,
-      onClick: () => onOpenProfile(),
-      badge: null
-    },
-    { divider: true },
-    {
-      id: 'development',
-      label: tr.development,
-      icon: CodeXml,
-      active: false,
-      onClick: () => onSelectTab('chat'),
-      badge: '5',
-      badgeColor: 'bg-accent/10 text-accent font-semibold'
-    },
-    {
-      id: 'metrics',
-      label: tr.infrastructure,
-      icon: Cpu,
-      active: activeTab === 'metrics',
-      onClick: () => onSelectTab('metrics'),
-      badge: isAdmin ? null : '🔒'
-    }
-  ];
+  const navItems = isAdmin
+    ? [
+        {
+          id: 'chat',
+          label: tr.chats,
+          icon: MessageSquare,
+          active: activeTab === 'chat',
+          onClick: () => onSelectTab('chat'),
+          badge: null
+        },
+        {
+          id: 'calendar',
+          label: tr.calendar,
+          icon: CalendarDays,
+          active: activeTab === 'calendar',
+          onClick: () => onSelectTab('calendar'),
+          badge: null
+        },
+        {
+          id: 'notes',
+          label: tr.notes,
+          icon: StickyNote,
+          active: false,
+          onClick: () => (onOpenNotes ? onOpenNotes() : onOpenProfile()),
+          badge: null
+        },
+        { divider: true },
+        {
+          id: 'development',
+          label: tr.development,
+          icon: CodeXml,
+          active: false,
+          onClick: () => onSelectTab('chat'),
+          badge: '5',
+          badgeColor: 'bg-accent/10 text-accent font-semibold'
+        },
+        {
+          id: 'metrics',
+          label: tr.infrastructure,
+          icon: Cpu,
+          active: activeTab === 'metrics',
+          onClick: () => onSelectTab('metrics'),
+          badge: null
+        }
+      ]
+    : [
+        {
+          id: 'chat',
+          label: tr.chats,
+          icon: MessageSquare,
+          active: activeTab === 'chat',
+          onClick: () => onSelectTab('chat'),
+          badge: null
+        },
+        {
+          id: 'cv',
+          label: tr.cv || 'CV',
+          icon: FileText,
+          active: false,
+          onClick: () => onOpenProfile(),
+          badge: null
+        },
+        {
+          id: 'calendar',
+          label: tr.calendar,
+          icon: CalendarDays,
+          active: activeTab === 'calendar',
+          onClick: () => onSelectTab('calendar'),
+          badge: null
+        }
+      ];
 
   return (
     <nav

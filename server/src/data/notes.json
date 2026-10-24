@@ -1,0 +1,23 @@
+[
+  {
+    "id": "note_1",
+    "title": "Prompt: Refactor & Clean Code para AGy",
+    "category": "Prompt",
+    "content": "Analiza el código y realiza una refactorización limpia siguiendo Clean Architecture y principios SOLID. No inventes dependencias ni elimines comentarios existentes. Al terminar compila y comprueba que no haya errores de sintaxis.",
+    "updatedAt": "2026-10-24T18:00:00.000Z"
+  },
+  {
+    "id": "note_2",
+    "title": "Comandos Operativos Debian 13 VPS",
+    "category": "Snippet",
+    "content": "# Diagnóstico de servicios y proxy\nsudo pm2 status\nsudo systemctl reload nginx\nsudo journalctl -u xrdp -n 30 --no-pager\nsudo rrdtool info /var/lib/rrd/node-win-01_ping.rrd",
+    "updatedAt": "2026-10-24T18:05:00.000Z"
+  },
+  {
+    "id": "note_3",
+    "title": "Ideas y Roadmap para Ask-Rodrigo",
+    "category": "Idea",
+    "content": "- Implementar autenticación persistente con Google Identity Services\n- Conectar el generador de feed iCal con citas de extranjería en tiempo real\n- Añadir exportación de notas a Markdown descargable\n- Optimizar selector de workspaces con cwd automático",
+    "updatedAt": "2026-10-24T18:10:00.000Z"
+  }
+]

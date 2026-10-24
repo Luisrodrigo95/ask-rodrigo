@@ -8,6 +8,7 @@ import { ChatView } from './components/ChatView';
 import { MetricsView } from './components/MetricsView';
 import { CalendarView } from './components/CalendarView';
 import { ProfileModal } from './components/ProfileModal';
+import { NotesModal } from './components/NotesModal';
 import { LoginModal } from './components/LoginModal';
 import { SettingsModal } from './components/SettingsModal';
 import { translations } from './i18n/translations';
@@ -66,9 +67,10 @@ export function App() {
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
 
-  // Profile and Health
+  // Profile, Notes and Health
   const [profileData, setProfileData] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [health, setHealth] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
 
@@ -441,6 +443,7 @@ export function App() {
         isCollapsed={isRailCollapsed}
         onToggleCollapse={handleToggleRail}
         onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenNotes={() => setIsNotesOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
@@ -590,6 +593,17 @@ export function App() {
         onClose={() => setIsProfileOpen(false)}
         profileData={profileData}
         currentLanguage={language}
+        t={t}
+      />
+
+      {/* Admin Notes & Prompts Modal */}
+      <NotesModal
+        isOpen={isNotesOpen}
+        onClose={() => setIsNotesOpen(false)}
+        onInsertPrompt={(promptText) => {
+          setActiveTab('chat');
+          window.dispatchEvent(new CustomEvent('insert_chat_prompt', { detail: { text: promptText } }));
+        }}
         t={t}
       />
 

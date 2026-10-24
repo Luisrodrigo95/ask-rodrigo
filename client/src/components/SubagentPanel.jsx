@@ -16,6 +16,8 @@ import { fetchSubagents, fetchUploadsList } from '../services/api.js';
 
 const WORKSPACE_PATHS = {
   normal: '/home/bombi',
+  askrodrigo: '/var/www/ask-rodrigo',
+  'ask-rodrigo': '/var/www/ask-rodrigo',
   portfolio: '/var/www/my-portfolio',
   preswin: '/var/www/preswin',
   totimigraciones: '/var/www/totimigraciones',
@@ -145,6 +147,7 @@ export function SubagentPanel({
           <div className="grid grid-cols-2 gap-1.5 pt-1">
             {[
               { id: 'normal', name: 'Normal' },
+              { id: 'askrodrigo', name: 'Ask-Rodrigo' },
               { id: 'portfolio', name: 'Portfolio' },
               { id: 'preswin', name: 'PresWin' },
               { id: 'totimigraciones', name: 'TotiMigra' },
