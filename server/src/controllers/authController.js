@@ -63,11 +63,12 @@ export async function loginGoogle(req, res) {
   try {
     const { credential, accessToken } = req.body;
     const tokenToVerify = credential || accessToken;
+    const tokenPrefix = tokenToVerify ? String(tokenToVerify).slice(0, 15) + '...' : 'none';
 
     console.log('[loginGoogle] Auth attempt received:', {
       hasCredential: Boolean(credential),
       hasAccessToken: Boolean(accessToken),
-      tokenPrefix: tokenToVerify ? String(tokenToVerify).slice(0, 15) + '...' : 'none'
+      tokenPrefix
     });
 
     if (!tokenToVerify) {
@@ -114,12 +115,14 @@ export async function loginGoogle(req, res) {
     }
 
     if (!email) {
+      console.warn('[loginGoogle] No email obtained from verification for token:', tokenPrefix);
       return res.status(401).json({
         error: 'No se pudo verificar la identidad con los servidores de Google. Token inválido o expirado.'
       });
     }
 
     if (!emailVerified) {
+      console.warn('[loginGoogle] Email not verified by Google:', email);
       return res.status(403).json({ error: 'El correo de Google no está verificado.' });
     }
 
@@ -127,10 +130,13 @@ export async function loginGoogle(req, res) {
     const isAuthorized = email === PRIMARY_ADMIN_EMAIL || ADMIN_EMAILS.includes(email);
 
     if (!isAuthorized) {
+      console.warn(`[loginGoogle] Unauthorized email attempt: ${email}. Allowed: ${PRIMARY_ADMIN_EMAIL}, ${ADMIN_EMAILS.join(',')}`);
       return res.status(403).json({
         error: `Acceso restringido: La cuenta ${email} no tiene permisos de Administrador. Solo ${PRIMARY_ADMIN_EMAIL} puede acceder a las funciones avanzadas.`
       });
     }
+
+    console.log(`[loginGoogle] Authorized admin login for: ${email}`);
 
     const payload = {
       role: 'admin',

@@ -138,12 +138,39 @@ export function App() {
     }
   };
 
-  const loadConversations = async () => {
+  const handleSelectConversation = async (id) => {
+    if (isGenerating) return;
+    setActiveConversationId(id);
+    localStorage.setItem('ask_rodrigo_active_conv', id);
+    setActiveTab('chat');
+    try {
+      const detail = await fetchConversationDetail(id);
+      setMessages(detail.messages || []);
+      setStreamingReply('');
+    } catch (err) {
+      console.error('Failed to load transcript:', err);
+    }
+  };
+
+  const loadConversations = async (autoSelect = true) => {
     if (currentUser?.role !== 'admin') return;
     setConversationsLoading(true);
     try {
       const data = await fetchConversations();
-      setConversations(data.conversations || []);
+      const list = data.conversations || [];
+      setConversations(list);
+
+      // Automatically sync and select stored or most recent session
+      if (autoSelect && list.length > 0) {
+        const storedConvId = localStorage.getItem('ask_rodrigo_active_conv');
+        const targetId = (storedConvId && list.some(c => c.id === storedConvId))
+          ? storedConvId
+          : list[0].id;
+
+        if (targetId && !activeConversationId) {
+          handleSelectConversation(targetId);
+        }
+      }
     } catch (err) {
       console.error('Failed to load conversations:', err);
     } finally {
@@ -222,6 +249,7 @@ export function App() {
   };
 
   const handleLogout = async () => {
+    localStorage.removeItem('ask_rodrigo_active_conv');
     logout();
     await handleGuestLogin();
   };
@@ -248,23 +276,10 @@ export function App() {
     localStorage.setItem('ask_rodrigo_google_client_id', id);
   };
 
-  // 4. Select / Load Conversation
-  const handleSelectConversation = async (id) => {
-    if (isGenerating) return;
-    setActiveConversationId(id);
-    setActiveTab('chat');
-    try {
-      const detail = await fetchConversationDetail(id);
-      setMessages(detail.messages || []);
-      setStreamingReply('');
-    } catch (err) {
-      console.error('Failed to load transcript:', err);
-    }
-  };
-
   const handleNewChat = () => {
     if (isGenerating) return;
     setActiveConversationId(null);
+    localStorage.removeItem('ask_rodrigo_active_conv');
     setMessages([]);
     setStreamingReply('');
     setStreamingStatus('');
