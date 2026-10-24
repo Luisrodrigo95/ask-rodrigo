@@ -1,0 +1,26 @@
+{
+  "name": "ask-rodrigo",
+  "version": "1.0.0",
+  "description": "Full-Stack AI Assistant and Knowledge Agent for Luis Rodrigo García Hernández",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "build": "npm --prefix client run build",
+    "start": "node server/src/server.js",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\""
+  },
+  "keywords": [
+    "ask-rodrigo",
+    "chatbot",
+    "ai-assistant",
+    "fullstack",
+    "portfolio",
+    "express",
+    "react",
+    "vite"
+  ],
+  "author": "Luis Rodrigo García Hernández",
+  "license": "MIT"
+}

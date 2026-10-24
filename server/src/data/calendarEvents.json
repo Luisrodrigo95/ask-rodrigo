@@ -1,0 +1,20 @@
+[
+  {
+    "id": "evt_1",
+    "title": "Mantenimiento Preventivo VPS",
+    "category": "Servidor",
+    "date": "2026-10-25",
+    "time": "03:00",
+    "description": "Revisión de logs Nginx, rotación y purga de temporales en Debian 13.",
+    "priority": "high"
+  },
+  {
+    "id": "evt_2",
+    "title": "Revisión Citas TotiMigraciones",
+    "category": "Cita",
+    "date": "2026-10-26",
+    "time": "11:00",
+    "description": "Auditoría de confirmaciones de citas consulares recibidas por IMAP.",
+    "priority": "medium"
+  }
+]
