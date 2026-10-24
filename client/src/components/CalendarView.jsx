@@ -25,7 +25,10 @@ import {
   ExternalLink,
   Download,
   Radio,
-  Headphones
+  Zap,
+  Tag,
+  Building,
+  CheckCircle2
 } from 'lucide-react';
 
 function isSameDay(d1, d2) {
@@ -64,34 +67,79 @@ export function CalendarView({
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [showModal, setShowModal] = useState(false);
   const [showIcsModal, setShowIcsModal] = useState(false);
+  const [showAddLayerModal, setShowAddLayerModal] = useState(false);
   const [copiedIcs, setCopiedIcs] = useState(false);
   const [showSidebarMobile, setShowSidebarMobile] = useState(false);
 
-  // Filter Sidebar States (Foundation for Layers & Groups)
-  const [onlyMyEvents, setOnlyMyEvents] = useState(false);
-  const [activeLayers, setActiveLayers] = useState({
-    server: true,
-    consular: true,
-    projects: true,
-    zaphosting: true,
-    personal: true
-  });
-  const [activeGroups, setActiveGroups] = useState({
-    portfolio: true,
-    preswin: true,
-    totimigraciones: true,
-    wiwishop: true,
-    infrastructure: true
+  // Dynamic Layers & Teams (Persisted in localStorage so Rodrigo can add whatever he wants)
+  const defaultLayers = [
+    { id: 'server', name: 'VPS & Infrastructure', icon: 'server', color: 'teal' },
+    { id: 'consular', name: 'Consular & Immigration', icon: 'consular', color: 'purple' },
+    { id: 'projects', name: 'Projects & Development', icon: 'projects', color: 'accent' },
+    { id: 'personal', name: 'Personal & Reminders', icon: 'personal', color: 'amber' }
+  ];
+
+  const defaultGroups = [
+    { id: 'portfolio', name: 'therodrigo.com (Portfolio)' },
+    { id: 'preswin', name: 'PresWin Cost Estimator' },
+    { id: 'totimigraciones', name: 'TotiMigraciones Portal' },
+    { id: 'appointment_checker', name: 'Appointment Checker (Daemon)' },
+    { id: 'infrastructure', name: 'Debian 13 VPS Daemons' }
+  ];
+
+  const [layersList, setLayersList] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ask_rodrigo_custom_layers');
+      return saved ? JSON.parse(saved) : defaultLayers;
+    } catch {
+      return defaultLayers;
+    }
   });
 
-  // Form states for new event
+  const [groupsList, setGroupsList] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ask_rodrigo_custom_groups');
+      return saved ? JSON.parse(saved) : defaultGroups;
+    } catch {
+      return defaultGroups;
+    }
+  });
+
+  // Filter Checkbox States
+  const [onlyMyEvents, setOnlyMyEvents] = useState(false);
+  const [activeLayers, setActiveLayers] = useState(() => {
+    const state = {};
+    layersList.forEach((l) => { state[l.id] = true; });
+    return state;
+  });
+
+  const [activeGroups, setActiveGroups] = useState(() => {
+    const state = {};
+    groupsList.forEach((g) => { state[g.id] = true; });
+    return state;
+  });
+
+  // Additional Ask Marvin filters
+  const [showShifts, setShowShifts] = useState(true);
+  const [showAbsences, setShowAbsences] = useState(true);
+  const [showMilestones, setShowMilestones] = useState(true);
+
+  // New Event Form State
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('Servidor');
+  const [customCategory, setCustomCategory] = useState('');
+  const [newLayer, setNewLayer] = useState('server');
   const [newGroup, setNewGroup] = useState('infrastructure');
   const [newDate, setNewDate] = useState(formatDateISO(new Date()));
   const [newTime, setNewTime] = useState('10:00');
   const [newDescription, setNewDescription] = useState('');
   const [newPriority, setNewPriority] = useState('medium');
+  const [newIsPrivate, setNewIsPrivate] = useState(false);
+  const [newEventType, setNewEventType] = useState('standard'); // 'standard' | 'shift' | 'absence'
+
+  // Add Layer/Team Modal State
+  const [layerOrTeamType, setLayerOrTeamType] = useState('layer'); // 'layer' | 'group'
+  const [newCustomName, setNewCustomName] = useState('');
 
   const feedUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/ask-rodrigo/api/calendar.ics`
@@ -105,27 +153,9 @@ export function CalendarView({
 
   const isAdmin = currentUser?.role === 'admin';
   const clt = t?.calendar || {
-    title: "Rodrigo's Calendar & Schedule",
-    subtitle: "Consular appointments, scheduled VPS maintenance, and project milestones.",
+    title: "Rodrigo's Calendar",
+    subtitle: "Consular appointments, scheduled VPS maintenance, and milestones.",
     newEvent: "New Event",
-    closeForm: "Close Form",
-    guestNotice: "Read-Only Mode (Guest)",
-    eventTitle: "Event Title *",
-    titlePlaceholder: "e.g. Nginx Audit or Consular Appointment",
-    category: "Category",
-    catAppointment: "Consular / Immigration Appointment",
-    catServer: "VPS / Server Maintenance",
-    catWork: "Projects & Development",
-    catPersonal: "Personal",
-    date: "Date",
-    time: "Time",
-    notes: "Notes / Details",
-    notesPlaceholder: "Details regarding the event...",
-    cancel: "Cancel",
-    save: "Save Event",
-    emptyTitle: "No events scheduled",
-    emptyDescAdmin: "Create a new event using the button above.",
-    emptyDescGuest: "Rodrigo's schedule is currently clear.",
     viewMonth: "Month",
     viewWeek: "Week",
     viewDay: "Day",
@@ -210,33 +240,70 @@ export function CalendarView({
 
   // Layer toggle helpers
   const toggleAllLayers = (val) => {
-    setActiveLayers({
-      server: val,
-      consular: val,
-      projects: val,
-      zaphosting: val,
-      personal: val
-    });
+    const updated = {};
+    layersList.forEach((l) => { updated[l.id] = val; });
+    setActiveLayers(updated);
   };
 
-  // Filter events based on search query, layer checkboxes, and groups
+  const toggleAllGroups = (val) => {
+    const updated = {};
+    groupsList.forEach((g) => { updated[g.id] = val; });
+    setActiveGroups(updated);
+  };
+
+  // Save custom layer or group
+  const handleAddCustomItem = (e) => {
+    e.preventDefault();
+    if (!newCustomName.trim()) return;
+    const cleanId = newCustomName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+    if (layerOrTeamType === 'layer') {
+      const newLayerItem = { id: cleanId, name: newCustomName.trim(), icon: 'tag', color: 'accent' };
+      const updated = [...layersList, newLayerItem];
+      setLayersList(updated);
+      setActiveLayers((prev) => ({ ...prev, [cleanId]: true }));
+      localStorage.setItem('ask_rodrigo_custom_layers', JSON.stringify(updated));
+    } else {
+      const newGroupItem = { id: cleanId, name: newCustomName.trim() };
+      const updated = [...groupsList, newGroupItem];
+      setGroupsList(updated);
+      setActiveGroups((prev) => ({ ...prev, [cleanId]: true }));
+      localStorage.setItem('ask_rodrigo_custom_groups', JSON.stringify(updated));
+    }
+
+    setNewCustomName('');
+    setShowAddLayerModal(false);
+  };
+
+  // Filter events based on search, layers, and groups
   const filteredEvents = useMemo(() => {
     if (!events || !Array.isArray(events)) return [];
 
     let list = [...events];
 
-    // 1. Layer filtering
+    // 1. Only my events
+    if (onlyMyEvents) {
+      list = list.filter((e) => (e.owner || '').toLowerCase().includes('rodrigo'));
+    }
+
+    // 2. Layer filtering
     list = list.filter((e) => {
-      const cat = (e.category || '').toLowerCase();
-      if ((cat.includes('servidor') || cat.includes('server')) && !activeLayers.server) return false;
-      if ((cat.includes('cita') || cat.includes('appointment')) && !activeLayers.consular) return false;
-      if ((cat.includes('proyecto') || cat.includes('work')) && !activeLayers.projects) return false;
-      if ((cat.includes('zap') || cat.includes('turno') || cat.includes('soporte') || cat.includes('guardia')) && !activeLayers.zaphosting) return false;
-      if (cat.includes('personal') && !activeLayers.personal) return false;
+      const layerId = e.layer || (
+        (e.category || '').toLowerCase().includes('servidor') ? 'server' :
+        (e.category || '').toLowerCase().includes('cita') ? 'consular' :
+        (e.category || '').toLowerCase().includes('proyecto') ? 'projects' : 'personal'
+      );
+      if (activeLayers[layerId] === false) return false;
       return true;
     });
 
-    // 2. Search filtering
+    // 3. Group filtering
+    list = list.filter((e) => {
+      if (e.group && activeGroups[e.group] === false) return false;
+      return true;
+    });
+
+    // 4. Search filtering
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter((e) => {
@@ -248,62 +315,32 @@ export function CalendarView({
     }
 
     return list;
-  }, [events, activeLayers, searchQuery]);
+  }, [events, onlyMyEvents, activeLayers, activeGroups, searchQuery]);
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
     if (!newTitle.trim() || !isAdmin) return;
 
+    const finalCat = newCategory === 'custom' ? (customCategory.trim() || 'General') : newCategory;
+
     onCreateEvent({
       title: newTitle.trim(),
-      category: newCategory,
+      category: finalCat,
+      layer: newLayer,
       group: newGroup,
       date: newDate,
       time: newTime,
       description: newDescription.trim(),
-      priority: newPriority
+      priority: newPriority,
+      isPrivate: newIsPrivate,
+      eventType: newEventType,
+      owner: 'Rodrigo García'
     });
 
     setNewTitle('');
+    setCustomCategory('');
     setNewDescription('');
     setShowModal(false);
-  };
-
-  const getCategoryStyles = (cat) => {
-    const c = (cat || '').toLowerCase();
-    if (c.includes('servidor') || c.includes('server')) {
-      return {
-        badge: 'bg-teal-500/15 border-teal-500/30 text-teal-300',
-        dot: 'bg-teal-400',
-        icon: Server
-      };
-    }
-    if (c.includes('cita') || c.includes('appointment')) {
-      return {
-        badge: 'bg-purple-500/15 border-purple-500/30 text-purple-300',
-        dot: 'bg-purple-400',
-        icon: FileCheck
-      };
-    }
-    if (c.includes('proyecto') || c.includes('work')) {
-      return {
-        badge: 'bg-accent/15 border-accent/30 text-accent',
-        dot: 'bg-accent',
-        icon: Code2
-      };
-    }
-    if (c.includes('zap') || c.includes('turno') || c.includes('soporte') || c.includes('guardia')) {
-      return {
-        badge: 'bg-amber-500/15 border-amber-500/30 text-amber-300',
-        dot: 'bg-amber-400',
-        icon: Headphones
-      };
-    }
-    return {
-      badge: 'bg-amber-500/15 border-amber-500/30 text-amber-300',
-      dot: 'bg-amber-400',
-      icon: User
-    };
   };
 
   const formatCurrentTimeString = () => {
@@ -317,7 +354,7 @@ export function CalendarView({
         {/* Left: Title & Navigation */}
         <div className="flex items-center gap-3">
           <h1 className="font-semibold text-[19px] tracking-tight text-ink">
-            {clt.title.split("'")[0] || 'Calendar'}
+            {clt.title || 'Calendar'}
           </h1>
 
           <div className="flex items-center gap-1">
@@ -348,7 +385,7 @@ export function CalendarView({
           </span>
         </div>
 
-        {/* Right: View Switcher, Search & Event Creation */}
+        {/* Right: View Switcher, Search, Meeting & Event CTA */}
         <div className="flex items-center gap-2">
           {/* Mobile Filter Toggle */}
           <button
@@ -380,7 +417,7 @@ export function CalendarView({
             ))}
           </div>
 
-          {/* Quick Search */}
+          {/* Quick Search Input */}
           <div className="relative hidden sm:block">
             <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -393,12 +430,24 @@ export function CalendarView({
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-ink cursor-pointer"
               >
                 <X className="w-3 h-3" />
               </button>
             )}
           </div>
+
+          {/* Quick Instant Meeting Button (Ask Marvin Style) */}
+          <a
+            href="https://meet.google.com/new"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 rounded-[10px] bg-sunken border border-edge/80 px-2.5 py-1.5 text-xs font-medium text-ink hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+            title="Start instant video meeting"
+          >
+            <Zap className="w-3.5 h-3.5 text-accent" />
+            <span className="hidden lg:inline">Start Meeting</span>
+          </a>
 
           {/* iCal Subscription Button */}
           <button
@@ -406,7 +455,7 @@ export function CalendarView({
             className="flex items-center gap-1.5 rounded-[10px] bg-sunken border border-edge/80 px-2.5 py-1.5 text-xs font-medium text-ink hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
             title="Suscripción iCal (.ics) & Google Calendar"
           >
-            <Radio className="w-3.5 h-3.5 text-accent animate-pulse" />
+            <Radio className="w-3.5 h-3.5 text-accent" />
             <span className="hidden sm:inline">iCal Feed</span>
           </button>
 
@@ -422,13 +471,13 @@ export function CalendarView({
           ) : (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[10px] bg-sunken border border-edge text-muted text-xs">
               <Lock className="w-3 h-3 text-amber-400" />
-              <span className="hidden sm:inline">{clt.guestNotice}</span>
+              <span className="hidden sm:inline">Read-Only</span>
             </div>
           )}
         </div>
       </header>
 
-      {/* 2. Workspace Layout: Sidebar (Layers & Groups) + Main Agenda */}
+      {/* 2. Workspace Layout: Sidebar (Layers & Groups) + Main Agenda Feed */}
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left Filter & Layers Aside (224px, Ask Marvin Pattern) */}
         <aside
@@ -442,18 +491,18 @@ export function CalendarView({
               type="checkbox"
               checked={onlyMyEvents}
               onChange={(e) => setOnlyMyEvents(e.target.checked)}
-              className="rounded accent-teal-500"
+              className="rounded accent-teal-500 cursor-pointer"
             />
             <span className="text-[12px] text-ink font-semibold">Only my events</span>
           </label>
 
-          {/* Layers Section */}
+          {/* Dynamic Layers Section */}
           <div className="space-y-1">
             <div className="flex items-center justify-between pb-1">
               <span className="font-semibold text-[11px] uppercase tracking-wider text-muted flex items-center gap-1">
                 <Layers className="w-3 h-3 text-accent" /> Layers
               </span>
-              <div className="flex gap-1 text-[10px] font-mono">
+              <div className="flex items-center gap-1 text-[10px] font-mono">
                 <button
                   onClick={() => toggleAllLayers(true)}
                   className="rounded border border-edge px-1.5 py-0.5 hover:bg-sunken text-muted hover:text-ink cursor-pointer"
@@ -466,90 +515,122 @@ export function CalendarView({
                 >
                   none
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      setLayerOrTeamType('layer');
+                      setShowAddLayerModal(true);
+                    }}
+                    className="p-1 rounded text-accent hover:bg-sunken cursor-pointer"
+                    title="Add custom layer"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             </div>
 
-            <label className="flex cursor-pointer items-center gap-2 py-1 text-ink/80 hover:text-ink">
-              <input
-                type="checkbox"
-                checked={activeLayers.server}
-                onChange={(e) => setActiveLayers((p) => ({ ...p, server: e.target.checked }))}
-                className="rounded accent-teal-500"
-              />
-              <Server className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-              <span className="truncate">VPS & Infrastructure</span>
-            </label>
-
-            <label className="flex cursor-pointer items-center gap-2 py-1 text-ink/80 hover:text-ink">
-              <input
-                type="checkbox"
-                checked={activeLayers.consular}
-                onChange={(e) => setActiveLayers((p) => ({ ...p, consular: e.target.checked }))}
-                className="rounded accent-purple-500"
-              />
-              <FileCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-              <span className="truncate">Consular Appointments</span>
-            </label>
-
-            <label className="flex cursor-pointer items-center gap-2 py-1 text-ink/80 hover:text-ink">
-              <input
-                type="checkbox"
-                checked={activeLayers.projects}
-                onChange={(e) => setActiveLayers((p) => ({ ...p, projects: e.target.checked }))}
-                className="rounded accent-teal-500"
-              />
-              <Code2 className="w-3.5 h-3.5 text-accent shrink-0" />
-              <span className="truncate">Projects & Sprints</span>
-            </label>
-
-            <label className="flex cursor-pointer items-center gap-2 py-1 text-ink/80 hover:text-ink">
-              <input
-                type="checkbox"
-                checked={activeLayers.zaphosting}
-                onChange={(e) => setActiveLayers((p) => ({ ...p, zaphosting: e.target.checked }))}
-                className="rounded accent-amber-500"
-              />
-              <Headphones className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="truncate">Turnos ZAP-Hosting (Soporte)</span>
-            </label>
-
-            <label className="flex cursor-pointer items-center gap-2 py-1 text-ink/80 hover:text-ink">
-              <input
-                type="checkbox"
-                checked={activeLayers.personal}
-                onChange={(e) => setActiveLayers((p) => ({ ...p, personal: e.target.checked }))}
-                className="rounded accent-amber-500"
-              />
-              <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="truncate">Personal / Reminders</span>
-            </label>
+            {layersList.map((layer) => (
+              <label key={layer.id} className="flex cursor-pointer items-center gap-2 py-1 text-ink/80 hover:text-ink">
+                <input
+                  type="checkbox"
+                  checked={Boolean(activeLayers[layer.id])}
+                  onChange={(e) => setActiveLayers((p) => ({ ...p, [layer.id]: e.target.checked }))}
+                  className="rounded accent-teal-500 cursor-pointer"
+                />
+                {layer.icon === 'server' ? (
+                  <Server className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                ) : layer.icon === 'consular' ? (
+                  <FileCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                ) : layer.icon === 'projects' ? (
+                  <Code2 className="w-3.5 h-3.5 text-accent shrink-0" />
+                ) : (
+                  <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                )}
+                <span className="truncate">{layer.name}</span>
+              </label>
+            ))}
           </div>
 
-          {/* Groups & Workspaces Section */}
+          {/* Dynamic Project Groups / Workspaces */}
           <div className="space-y-1 pt-2 border-t border-edge/60">
             <div className="flex items-center justify-between pb-1">
               <span className="font-semibold text-[11px] uppercase tracking-wider text-muted flex items-center gap-1">
-                <FolderKanban className="w-3 h-3 text-accent" /> Project Groups
+                <FolderKanban className="w-3 h-3 text-accent" /> Teams & Projects
               </span>
+              <div className="flex items-center gap-1 text-[10px] font-mono">
+                <button
+                  onClick={() => toggleAllGroups(true)}
+                  className="rounded border border-edge px-1.5 py-0.5 hover:bg-sunken text-muted hover:text-ink cursor-pointer"
+                >
+                  all
+                </button>
+                <button
+                  onClick={() => toggleAllGroups(false)}
+                  className="rounded border border-edge px-1.5 py-0.5 hover:bg-sunken text-muted hover:text-ink cursor-pointer"
+                >
+                  none
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      setLayerOrTeamType('group');
+                      setShowAddLayerModal(true);
+                    }}
+                    className="p-1 rounded text-accent hover:bg-sunken cursor-pointer"
+                    title="Add custom team/project"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {[
-              { id: 'portfolio', label: 'therodrigo.com (Portfolio)' },
-              { id: 'preswin', label: 'PresWin Cost Estimator' },
-              { id: 'totimigraciones', label: 'TotiMigraciones Portal' },
-              { id: 'wiwishop', label: 'WiwiShop Catalog' },
-              { id: 'infrastructure', label: 'Debian 13 VPS Daemons' }
-            ].map((g) => (
+            {groupsList.map((g) => (
               <label key={g.id} className="flex cursor-pointer items-center gap-2 py-1 text-ink/80 hover:text-ink">
                 <input
                   type="checkbox"
-                  checked={activeGroups[g.id]}
+                  checked={Boolean(activeGroups[g.id])}
                   onChange={(e) => setActiveGroups((p) => ({ ...p, [g.id]: e.target.checked }))}
-                  className="rounded accent-teal-500"
+                  className="rounded accent-teal-500 cursor-pointer"
                 />
-                <span className="truncate text-[11.5px]">{g.label}</span>
+                <span className="truncate text-[11.5px]">{g.name}</span>
               </label>
             ))}
+          </div>
+
+          {/* Ask Marvin Event Type Flags */}
+          <div className="space-y-1 pt-2 border-t border-edge/60">
+            <span className="font-semibold text-[11px] uppercase tracking-wider text-muted block pb-1">
+              Event Types
+            </span>
+            <label className="flex cursor-pointer items-center gap-2 py-0.5 text-ink/80 hover:text-ink">
+              <input
+                type="checkbox"
+                checked={showShifts}
+                onChange={(e) => setShowShifts(e.target.checked)}
+                className="rounded accent-teal-500 cursor-pointer"
+              />
+              <span className="text-[11.5px]">Work blocks / Shifts</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 py-0.5 text-ink/80 hover:text-ink">
+              <input
+                type="checkbox"
+                checked={showAbsences}
+                onChange={(e) => setShowAbsences(e.target.checked)}
+                className="rounded accent-teal-500 cursor-pointer"
+              />
+              <span className="text-[11.5px]">Absences & Leave</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 py-0.5 text-ink/80 hover:text-ink">
+              <input
+                type="checkbox"
+                checked={showMilestones}
+                onChange={(e) => setShowMilestones(e.target.checked)}
+                className="rounded accent-teal-500 cursor-pointer"
+              />
+              <span className="text-[11.5px]">Milestones & Tasks</span>
+            </label>
           </div>
 
           {/* Private Schedule Marker */}
@@ -607,30 +688,105 @@ export function CalendarView({
                       </span>
                     </div>
 
-                    {/* Ask Marvin's Live "Now" Line Indicator for Today */}
+                    {/* Ask Marvin Live "Now" Line Indicator for Today */}
                     {isToday && (
                       <div className="flex items-center gap-2 px-1 py-1 my-2 animate-fadeIn">
-                        <span className="text-[10px] font-bold tabular-nums text-rose-500 font-mono flex items-center gap-1.5 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                        <span className="text-[10px] font-bold tabular-nums text-red-500 font-mono flex items-center gap-1.5 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
                           <span>{formatCurrentTimeString()}</span>
                         </span>
-                        <span className="h-px flex-1 bg-gradient-to-r from-rose-500 via-rose-500/80 to-transparent" />
+                        <span className="h-px flex-1 bg-gradient-to-r from-red-500 via-red-500/80 to-transparent" />
                       </div>
                     )}
 
-                    {/* Event Chips List */}
+                    {/* Event Cards Renderers */}
                     {dayEvents.length > 0 ? (
                       <div className="space-y-1.5">
                         {dayEvents.map((evt) => {
-                          const style = getCategoryStyles(evt.category);
+                          // 1. Check if Private and non-admin: Render Ask Marvin's obfuscated grayscale bar
+                          if (evt.isPrivate && !isAdmin) {
+                            return (
+                              <div
+                                key={evt.id}
+                                className="flex items-center gap-2.5 rounded-[10px] border border-edge px-3 py-2 text-left bg-panel/40 opacity-50 grayscale select-none"
+                              >
+                                <span className="h-7 w-1 shrink-0 rounded-full bg-red-500" />
+                                <span className="text-xs font-mono text-muted tabular-nums shrink-0">
+                                  {evt.time || 'All day'}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <span className="block truncate text-xs font-medium text-ink">
+                                    Private Event
+                                  </span>
+                                  <span className="block truncate text-[10px] text-muted">
+                                    Private calendar of Rodrigo García
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          }
 
+                          // 2. Work Block / Shift Chip (Yellow/Amber Pill)
+                          if (evt.eventType === 'shift') {
+                            return (
+                              <div
+                                key={evt.id}
+                                className="group flex items-center justify-between gap-3 px-3 py-2 rounded-[10px] bg-amber-500/15 border border-amber-500/30 text-xs shadow-v2-sm"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="font-mono font-semibold text-amber-300 shrink-0">
+                                    {evt.time || '10:00–18:00'}
+                                  </span>
+                                  <span className="text-amber-200 font-medium truncate">
+                                    · {evt.title}
+                                  </span>
+                                  {evt.description && (
+                                    <span className="text-amber-300/80 text-[11px] truncate hidden sm:inline">
+                                      ({evt.description})
+                                    </span>
+                                  )}
+                                </div>
+                                {isAdmin && (
+                                  <button
+                                    onClick={() => onDeleteEvent(evt.id)}
+                                    className="opacity-0 group-hover:opacity-100 p-1 text-amber-400 hover:text-rose-400 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // 3. Absence / Leave Chip (Emerald Pill)
+                          if (evt.eventType === 'absence') {
+                            return (
+                              <div
+                                key={evt.id}
+                                className="group flex items-center justify-between gap-3 px-3 py-1.5 rounded-[10px] bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300 shadow-v2-sm"
+                              >
+                                <span className="truncate font-medium">
+                                  {evt.title} · Leave & Absence
+                                </span>
+                                {isAdmin && (
+                                  <button
+                                    onClick={() => onDeleteEvent(evt.id)}
+                                    className="opacity-0 group-hover:opacity-100 p-1 text-emerald-400 hover:text-rose-400 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // 4. Standard Milestone / Sprint Card
                           return (
                             <div
                               key={evt.id}
                               className="group flex items-center justify-between gap-3 p-2.5 rounded-[12px] bg-panel border border-edge hover:border-accent/40 transition-all shadow-v2-sm"
                             >
                               <div className="flex items-center gap-3 min-w-0">
-                                {/* Time Pill */}
                                 {evt.time && (
                                   <div className="flex items-center gap-1 text-[11px] font-mono font-medium text-slate-300 bg-sunken px-2 py-1 rounded-[8px] border border-edge/60 shrink-0">
                                     <Clock className="w-3 h-3 text-muted" />
@@ -638,19 +794,18 @@ export function CalendarView({
                                   </div>
                                 )}
 
-                                {/* Title & Notes */}
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2">
                                     <span className="font-medium text-[13px] text-ink truncate">
                                       {evt.title}
                                     </span>
-                                    <span
-                                      className={`px-2 py-0.2 rounded-full text-[10px] font-medium border font-mono ${style.badge}`}
-                                    >
+                                    <span className="px-2 py-0.2 rounded-full text-[10px] font-medium border font-mono bg-accent/15 border-accent/30 text-accent">
                                       {evt.category}
                                     </span>
-                                    {evt.priority === 'high' && (
-                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" title="High Priority" />
+                                    {evt.isPrivate && (
+                                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-400 font-mono flex items-center gap-0.5">
+                                        <Lock className="w-2.5 h-2.5" /> Private
+                                      </span>
                                     )}
                                   </div>
                                   {evt.description && (
@@ -661,14 +816,9 @@ export function CalendarView({
                                 </div>
                               </div>
 
-                              {/* Delete Action (Admin Only) */}
                               {isAdmin && (
                                 <button
-                                  onClick={() => {
-                                    if (confirm(clt.deleteConfirm.replace('{title}', evt.title))) {
-                                      onDeleteEvent(evt.id);
-                                    }
-                                  }}
+                                  onClick={() => onDeleteEvent(evt.id)}
                                   className="opacity-0 group-hover:opacity-100 p-1.5 text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-[8px] transition-all cursor-pointer"
                                   title="Delete event"
                                 >
@@ -697,11 +847,11 @@ export function CalendarView({
             <div className="max-w-3xl mx-auto p-4 space-y-3">
               {isSameDay(selectedDate, new Date()) && (
                 <div className="flex items-center gap-2 px-1 py-1 my-2">
-                  <span className="text-[11px] font-bold tabular-nums text-rose-500 font-mono flex items-center gap-1.5 bg-rose-500/10 px-2.5 py-0.5 rounded-full border border-rose-500/20">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                  <span className="text-[11px] font-bold tabular-nums text-red-500 font-mono flex items-center gap-1.5 bg-red-500/10 px-2.5 py-0.5 rounded-full border border-red-500/20">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
                     <span>{formatCurrentTimeString()} (Now)</span>
                   </span>
-                  <span className="h-px flex-1 bg-gradient-to-r from-rose-500 to-transparent" />
+                  <span className="h-px flex-1 bg-gradient-to-r from-red-500 to-transparent" />
                 </div>
               )}
 
@@ -713,97 +863,86 @@ export function CalendarView({
               ) : (
                 filteredEvents
                   .filter((e) => e.date === formatDateISO(selectedDate))
-                  .map((evt) => {
-                    const style = getCategoryStyles(evt.category);
-                    return (
-                      <div
-                        key={evt.id}
-                        className="group flex items-start justify-between gap-3 p-3.5 rounded-[14px] bg-panel border border-edge shadow-v2-sm"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm text-ink">{evt.title}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono border ${style.badge}`}>
-                              {evt.category}
-                            </span>
-                          </div>
-                          {evt.time && (
-                            <div className="text-xs font-mono text-muted flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5 text-accent" />
-                              <span>{evt.time}</span>
-                            </div>
-                          )}
-                          {evt.description && (
-                            <p className="text-xs text-muted/90 pt-1 leading-relaxed">
-                              {evt.description}
-                            </p>
-                          )}
+                  .map((evt) => (
+                    <div
+                      key={evt.id}
+                      className="group flex items-start justify-between gap-3 p-3.5 rounded-[14px] bg-panel border border-edge shadow-v2-sm"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-ink">{evt.title}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono border bg-accent/15 border-accent/30 text-accent">
+                            {evt.category}
+                          </span>
                         </div>
-
-                        {isAdmin && (
-                          <button
-                            onClick={() => {
-                              if (confirm(clt.deleteConfirm.replace('{title}', evt.title))) {
-                                onDeleteEvent(evt.id);
-                              }
-                            }}
-                            className="opacity-60 group-hover:opacity-100 p-1.5 text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-[8px] transition-all cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        {evt.time && (
+                          <div className="text-xs font-mono text-muted flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-accent" />
+                            <span>{evt.time}</span>
+                          </div>
+                        )}
+                        {evt.description && (
+                          <p className="text-xs text-muted/90 pt-1 leading-relaxed">
+                            {evt.description}
+                          </p>
                         )}
                       </div>
-                    );
-                  })
+
+                      {isAdmin && (
+                        <button
+                          onClick={() => onDeleteEvent(evt.id)}
+                          className="opacity-60 group-hover:opacity-100 p-1.5 text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-[8px] transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))
               )}
             </div>
           )}
 
-          {/* VIEW 3: MONTH GRID */}
+          {/* VIEW 3: MONTH MATRIX VIEW */}
           {viewMode === 'month' && (
-            <div className="max-w-5xl mx-auto p-4">
-              <div className="grid grid-cols-7 gap-px bg-edge rounded-[14px] overflow-hidden border border-edge shadow-v2-sm">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-                  <div key={day} className="bg-panel p-2 text-center text-xs font-semibold text-muted font-mono">
-                    {day}
-                  </div>
-                ))}
+            <div className="max-w-5xl mx-auto p-4 space-y-3">
+              <div className="grid grid-cols-7 gap-1 text-center font-semibold text-xs text-muted pb-1 border-b border-edge">
+                <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+              </div>
+              <div className="grid grid-cols-7 gap-1 auto-rows-fr">
                 {Array.from({ length: 35 }).map((_, idx) => {
-                  const monday = getMonday(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
-                  const cellDate = new Date(monday);
-                  cellDate.setDate(monday.getDate() + idx);
-
-                  const cellIso = formatDateISO(cellDate);
-                  const isCurrentMonth = cellDate.getMonth() === selectedDate.getMonth();
-                  const isToday = isSameDay(cellDate, new Date());
-                  const dayEvts = filteredEvents.filter((e) => e.date === cellIso);
+                  const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+                  const startOffset = (firstDay.getDay() + 6) % 7;
+                  const currentDayNum = idx - startOffset + 1;
+                  const d = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), currentDayNum);
+                  const isCurrentMonth = d.getMonth() === selectedDate.getMonth();
+                  const isToday = isSameDay(d, new Date());
+                  const dayEvts = filteredEvents.filter((e) => e.date === formatDateISO(d));
 
                   return (
                     <div
                       key={idx}
                       onClick={() => {
-                        setSelectedDate(cellDate);
-                        setViewMode('week');
+                        setSelectedDate(d);
+                        setViewMode('day');
                       }}
-                      className={`min-h-[75px] p-2 transition-colors cursor-pointer ${
-                        isCurrentMonth ? 'bg-paper hover:bg-panel' : 'bg-paper/40 opacity-40 hover:opacity-70'
-                      }`}
+                      className={`min-h-[75px] p-1.5 rounded-[10px] border transition-all cursor-pointer ${
+                        isCurrentMonth ? 'bg-panel/70 border-edge/60' : 'bg-sunken/40 border-edge/30 opacity-40'
+                      } ${isToday ? 'ring-1 ring-accent bg-accent/5' : 'hover:border-accent/40'}`}
                     >
-                      <div className="flex items-center justify-between mb-1">
-                        <span
-                          className={`text-xs font-mono font-medium rounded-full w-5 h-5 flex items-center justify-center ${
-                            isToday ? 'bg-accent text-white font-bold' : 'text-ink'
-                          }`}
-                        >
-                          {cellDate.getDate()}
+                      <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+                        <span className={isToday ? 'font-bold text-accent' : 'text-muted'}>
+                          {d.getDate()}
                         </span>
+                        {dayEvts.length > 0 && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                        )}
                       </div>
 
                       <div className="space-y-1">
                         {dayEvts.slice(0, 2).map((ev) => (
                           <div
                             key={ev.id}
-                            className="truncate text-[10px] px-1.5 py-0.5 rounded-[4px] bg-panel border border-edge text-muted font-mono"
+                            className="text-[10px] truncate rounded bg-sunken px-1 py-0.5 border border-edge/50 text-ink/80"
                           >
                             {ev.title}
                           </div>
@@ -842,51 +981,117 @@ export function CalendarView({
 
             <form onSubmit={handleFormSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="block text-muted mb-1 font-medium">{clt.eventTitle}</label>
+                <label className="block text-muted mb-1 font-medium">Event Title *</label>
                 <input
                   type="text"
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder={clt.titlePlaceholder}
+                  placeholder="e.g. Nginx SSL Audit or Sprint Planning"
                   className="w-full bg-sunken border border-edge rounded-[10px] px-3 py-2 text-ink placeholder-muted/60 focus:outline-none focus:border-accent"
                 />
               </div>
 
+              {/* Event Type: Standard | Work Block Shift | Absence */}
+              <div>
+                <label className="block text-muted mb-1 font-medium">Visual Style</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: 'standard', label: 'Milestone / Task' },
+                    { id: 'shift', label: 'Work Block (Amber)' },
+                    { id: 'absence', label: 'Absence (Emerald)' }
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setNewEventType(t.id)}
+                      className={`py-1.5 px-2 rounded-[8px] text-[11px] font-medium border transition-colors cursor-pointer text-center truncate ${
+                        newEventType === t.id
+                          ? 'bg-accent/15 border-accent text-accent font-semibold'
+                          : 'bg-sunken border-edge text-muted hover:text-ink'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-muted mb-1 font-medium">{clt.category}</label>
+                  <label className="block text-muted mb-1 font-medium">Layer</label>
+                  <select
+                    value={newLayer}
+                    onChange={(e) => setNewLayer(e.target.value)}
+                    className="w-full bg-sunken border border-edge rounded-[10px] px-3 py-2 text-ink focus:outline-none focus:border-accent"
+                  >
+                    {layersList.map((l) => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-muted mb-1 font-medium">Team / Project</label>
+                  <select
+                    value={newGroup}
+                    onChange={(e) => setNewGroup(e.target.value)}
+                    className="w-full bg-sunken border border-edge rounded-[10px] px-3 py-2 text-ink focus:outline-none focus:border-accent"
+                  >
+                    {groupsList.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-muted mb-1 font-medium">Category</label>
                   <select
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
                     className="w-full bg-sunken border border-edge rounded-[10px] px-3 py-2 text-ink focus:outline-none focus:border-accent"
                   >
-                    <option value="Servidor">{clt.catServer}</option>
-                    <option value="Cita">{clt.catAppointment}</option>
-                    <option value="Proyecto">{clt.catWork}</option>
-                    <option value="Personal">{clt.catPersonal}</option>
+                    <option value="Servidor">Servidor / VPS</option>
+                    <option value="Cita">Cita Consular</option>
+                    <option value="Proyecto">Proyecto / Sprint</option>
+                    <option value="Personal">Personal / Privado</option>
+                    <option value="custom">+ Custom Category...</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-muted mb-1 font-medium">Project Group</label>
-                  <select
-                    value={newGroup}
-                    onChange={(e) => setNewGroup(e.target.value)}
-                    className="w-full bg-sunken border border-edge rounded-[10px] px-3 py-2 text-ink focus:outline-none focus:border-accent font-mono text-[11px]"
-                  >
-                    <option value="infrastructure">Debian 13 VPS</option>
-                    <option value="portfolio">Portfolio</option>
-                    <option value="preswin">PresWin</option>
-                    <option value="totimigraciones">TotiMigraciones</option>
-                    <option value="wiwishop">WiwiShop</option>
-                  </select>
-                </div>
+                {newCategory === 'custom' ? (
+                  <div>
+                    <label className="block text-muted mb-1 font-medium">Custom Category Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      placeholder="e.g. AI Research"
+                      className="w-full bg-sunken border border-edge rounded-[10px] px-3 py-2 text-ink focus:outline-none focus:border-accent"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-muted mb-1 font-medium">Priority</label>
+                    <select
+                      value={newPriority}
+                      onChange={(e) => setNewPriority(e.target.value)}
+                      className="w-full bg-sunken border border-edge rounded-[10px] px-3 py-2 text-ink focus:outline-none focus:border-accent"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High Priority</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-muted mb-1 font-medium">{clt.date}</label>
+                  <label className="block text-muted mb-1 font-medium">Date</label>
                   <input
                     type="date"
                     required
@@ -897,7 +1102,7 @@ export function CalendarView({
                 </div>
 
                 <div>
-                  <label className="block text-muted mb-1 font-medium">{clt.time}</label>
+                  <label className="block text-muted mb-1 font-medium">Time / Schedule</label>
                   <input
                     type="time"
                     value={newTime}
@@ -908,15 +1113,27 @@ export function CalendarView({
               </div>
 
               <div>
-                <label className="block text-muted mb-1 font-medium">{clt.notes}</label>
+                <label className="block text-muted mb-1 font-medium">Notes / Details</label>
                 <textarea
                   rows="2"
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder={clt.notesPlaceholder}
+                  placeholder="Additional context or links..."
                   className="w-full bg-sunken border border-edge rounded-[10px] px-3 py-2 text-ink placeholder-muted/60 focus:outline-none focus:border-accent resize-none"
                 />
               </div>
+
+              <label className="flex items-center gap-2 cursor-pointer pt-1 text-muted hover:text-ink">
+                <input
+                  type="checkbox"
+                  checked={newIsPrivate}
+                  onChange={(e) => setNewIsPrivate(e.target.checked)}
+                  className="rounded accent-rose-500 cursor-pointer"
+                />
+                <span className="flex items-center gap-1 text-[11.5px]">
+                  <Lock className="w-3 h-3 text-rose-400" /> Private event (obscured for guests)
+                </span>
+              </label>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-edge/60">
                 <button
@@ -924,27 +1141,80 @@ export function CalendarView({
                   onClick={() => setShowModal(false)}
                   className="px-3 py-1.5 rounded-[10px] bg-sunken text-muted hover:text-ink transition-colors cursor-pointer"
                 >
-                  {clt.cancel}
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-1.5 rounded-[10px] bg-accent text-white font-medium hover:bg-accent/90 transition-all shadow-v2-sm cursor-pointer"
                 >
-                  {clt.save}
+                  Save Event
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-      {/* 4. iCal Subscription & Google Calendar Modal */}
+
+      {/* 4. Add Custom Layer or Team/Project Modal */}
+      {isAdmin && showAddLayerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="w-full max-w-sm rounded-[18px] bg-panel border border-edge shadow-v2-md p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-edge/60 pb-3">
+              <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+                <Tag className="w-4 h-4 text-accent" />
+                <span>{layerOrTeamType === 'layer' ? 'Add Custom Layer' : 'Add Team / Project'}</span>
+              </h2>
+              <button
+                onClick={() => setShowAddLayerModal(false)}
+                className="text-muted hover:text-ink p-1 rounded-md cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCustomItem} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-muted mb-1 font-medium">
+                  {layerOrTeamType === 'layer' ? 'Layer Name' : 'Team / Project Name'} *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newCustomName}
+                  onChange={(e) => setNewCustomName(e.target.value)}
+                  placeholder={layerOrTeamType === 'layer' ? 'e.g. AI Research' : 'e.g. DarkBot Core'}
+                  className="w-full bg-sunken border border-edge rounded-[10px] px-3 py-2 text-ink placeholder-muted/60 focus:outline-none focus:border-accent"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-edge/60">
+                <button
+                  type="button"
+                  onClick={() => setShowAddLayerModal(false)}
+                  className="px-3 py-1.5 rounded-[10px] bg-sunken text-muted hover:text-ink transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-[10px] bg-accent text-white font-medium hover:bg-accent/90 transition-all shadow-v2-sm cursor-pointer"
+                >
+                  Add
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. iCal Subscription Feed Modal */}
       {showIcsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="w-full max-w-lg rounded-[18px] bg-panel border border-edge shadow-v2-md p-5 space-y-4">
+          <div className="w-full max-w-md rounded-[18px] bg-panel border border-edge shadow-v2-md p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-edge/60 pb-3">
               <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
                 <Radio className="w-4 h-4 text-accent" />
-                <span>Suscripción iCal (.ics) & Google Calendar</span>
+                <span>iCalendar (.ics) Live Subscription</span>
               </h2>
               <button
                 onClick={() => setShowIcsModal(false)}
@@ -955,56 +1225,35 @@ export function CalendarView({
             </div>
 
             <p className="text-xs text-muted leading-relaxed">
-              Sincroniza en tiempo real los mantenimientos de servidores, turnos de soporte en ZAP-Hosting, sprints de proyectos y citas consulares directamente en Google Calendar, Apple Calendar o Outlook.
+              Subscribe directly from Apple Calendar, Google Calendar, or Outlook to keep Rodrigo's schedule synchronized automatically.
             </p>
 
-            {/* URL Box */}
-            <div className="p-3 rounded-[12px] bg-sunken border border-edge/70 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] font-semibold text-muted uppercase tracking-wider">
-                <span>URL pública del Feed iCal</span>
-                <span className="text-emerald-400 font-mono text-[10px]">RFC 5545</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 p-1.5 rounded-[8px] bg-panel border border-edge/60">
-                <span className="font-mono text-xs text-accent truncate select-all px-1">
-                  {feedUrl}
-                </span>
-                <button
-                  onClick={handleCopyIcsUrl}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-accent/15 text-accent hover:bg-accent hover:text-white transition-all text-xs font-medium shrink-0 cursor-pointer"
-                >
-                  {copiedIcs ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedIcs ? '¡Copiado!' : 'Copiar'}</span>
-                </button>
-              </div>
+            <div className="p-2.5 rounded-[10px] bg-sunken border border-edge font-mono text-xs flex items-center justify-between gap-2 text-slate-200">
+              <span className="truncate">{feedUrl}</span>
+              <button
+                onClick={handleCopyIcsUrl}
+                className="p-1.5 rounded-md text-accent hover:bg-panel transition-colors cursor-pointer shrink-0"
+                title="Copy URL"
+              >
+                {copiedIcs ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+              </button>
             </div>
 
-            {/* Direct Action Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-edge/60">
               <a
-                href={`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(feedUrl)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-center gap-2 p-2.5 rounded-[10px] bg-panel border border-edge hover:border-accent text-xs font-semibold text-ink hover:text-accent transition-all shadow-v2-sm"
+                href={feedUrl}
+                download="ask-rodrigo-calendar.ics"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-sunken text-ink text-xs font-medium hover:bg-edge transition-colors"
               >
-                <ExternalLink className="w-3.5 h-3.5 text-accent" />
-                <span>Abrir en Google Calendar</span>
+                <Download className="w-3.5 h-3.5" />
+                <span>Download .ics</span>
               </a>
-
-              <a
-                href="/ask-rodrigo/api/calendar.ics"
-                download="rodrigo-calendar.ics"
-                className="flex items-center justify-center gap-2 p-2.5 rounded-[10px] bg-panel border border-edge hover:border-accent text-xs font-semibold text-ink hover:text-accent transition-all shadow-v2-sm"
+              <button
+                onClick={() => setShowIcsModal(false)}
+                className="px-4 py-1.5 rounded-[10px] bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-all cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5 text-teal-400" />
-                <span>Descargar archivo .ics</span>
-              </a>
-            </div>
-
-            <div className="pt-2 border-t border-edge/60 text-[11px] text-muted space-y-1">
-              <p className="font-semibold text-ink">💡 Cómo añadir a Google Calendar en 3 pasos:</p>
-              <p>1. Abre <span className="text-accent font-medium">Google Calendar</span> en tu navegador.</p>
-              <p>2. En el panel izquierdo junto a <em>"Otros calendarios"</em>, pulsa <strong>+</strong> y elige <strong>"Desde URL"</strong>.</p>
-              <p>3. Pega la URL del feed y pulsa <em>"Añadir calendario"</em>. Los eventos se actualizarán automáticamente.</p>
+                Close
+              </button>
             </div>
           </div>
         </div>

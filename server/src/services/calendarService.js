@@ -49,10 +49,14 @@ export function addCalendarEvent(eventData) {
     id: 'evt_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 4),
     title: String(eventData.title || 'Nuevo Evento').trim(),
     category: eventData.category || 'General',
+    layer: eventData.layer || 'projects',
+    group: eventData.group || 'general',
     date: eventData.date || new Date().toISOString().split('T')[0],
     time: eventData.time || '10:00',
     description: eventData.description || '',
     priority: eventData.priority || 'medium',
+    owner: eventData.owner || 'Rodrigo García',
+    isPrivate: Boolean(eventData.isPrivate),
     createdAt: new Date().toISOString()
   };
 
