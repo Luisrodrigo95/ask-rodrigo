@@ -16,6 +16,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3005;
 
+// Trust Nginx reverse proxy headers (X-Forwarded-For, X-Forwarded-Proto)
+app.set('trust proxy', 1);
+
 // Security Middleware with custom CSP to permit local frontend styles and scripts
 app.use(
   helmet({
@@ -52,12 +55,13 @@ app.use(express.urlencoded({ extended: true }));
 // Rate limiter for chat endpoint (protection against abuse)
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 30, // max 30 requests per minute per IP
+  max: 60, // max 60 requests per minute per IP
   message: {
-    error: 'Too many requests. Please wait a moment before asking another question.'
+    error: 'Demasiadas solicitudes. Por favor espera un momento.'
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false, default: false }
 });
 
 app.use('/api/chat', chatLimiter);
@@ -107,6 +111,14 @@ app.get('*', (req, res, next) => {
       `);
     }
   });
+});
+
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  console.error('[Server Error Handler]:', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: err.message || 'Error interno del servidor' });
+  }
 });
 
 // Start Server

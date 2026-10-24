@@ -77,9 +77,17 @@ export function streamChatMessage(message, conversationId, callbacks) {
         }
       }
     })
-    .catch((err) => {
-      if (err.name !== 'AbortError' && onError) {
-        onError(err.message);
+    .catch(async (err) => {
+      if (err.name === 'AbortError') return;
+      console.warn('[streamChatMessage] Stream error, attempting fallback to standard POST /chat:', err.message);
+      try {
+        if (onStatus) onStatus({ message: 'Conectando mediante canal estándar...' });
+        const res = await sendChatMessage(message, conversationId);
+        if (res.conversationId && onInit) onInit({ conversationId: res.conversationId });
+        if (res.reply && onDelta) onDelta(res.reply);
+        if (onDone) onDone(res);
+      } catch (fallbackErr) {
+        if (onError) onError(fallbackErr.message || err.message);
       }
     });
 
