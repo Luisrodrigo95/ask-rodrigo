@@ -189,8 +189,18 @@ export function calendarDeleteHandler(req, res) {
 }
 
 export function suggestionsHandler(req, res) {
+  const raw = rodrigoKnowledge.suggestions || [];
+  const flat = [];
+  for (const item of raw) {
+    if (Array.isArray(item.questions)) {
+      flat.push(...item.questions);
+    } else if (typeof item === 'string') {
+      flat.push(item);
+    }
+  }
   return res.json({
-    suggestions: rodrigoKnowledge.suggestions
+    suggestions: flat,
+    categorized: raw
   });
 }
 

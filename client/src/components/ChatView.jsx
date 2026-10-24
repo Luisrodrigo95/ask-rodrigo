@@ -79,12 +79,30 @@ export function ChatView({
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const defaultSuggestions = suggestions && suggestions.length > 0 ? suggestions : [
-    '¿Cuál es el estado de la infraestructura en el VPS?',
-    'Verifica el estado de los servicios systemd y procesos PM2',
-    'Explícame la arquitectura de TotiMigraciones y PresWin',
-    '¿Qué experiencia y habilidades técnicas tiene Rodrigo?'
-  ];
+  const normalizedSuggestions = React.useMemo(() => {
+    const fallback = [
+      '¿Cuál es el estado de la infraestructura en el VPS?',
+      'Verifica el estado de los servicios systemd y procesos PM2',
+      'Explícame la arquitectura de TotiMigraciones y PresWin',
+      '¿Qué experiencia y habilidades técnicas tiene Rodrigo?'
+    ];
+    if (!suggestions || !Array.isArray(suggestions) || suggestions.length === 0) {
+      return fallback;
+    }
+    const list = [];
+    for (const item of suggestions) {
+      if (typeof item === 'string') {
+        list.push(item);
+      } else if (item && Array.isArray(item.questions)) {
+        for (const q of item.questions) {
+          if (typeof q === 'string') list.push(q);
+        }
+      } else if (item && typeof item.question === 'string') {
+        list.push(item.question);
+      }
+    }
+    return list.length > 0 ? list.slice(0, 6) : fallback;
+  }, [suggestions]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-950/40 relative">
@@ -124,13 +142,13 @@ export function ChatView({
 
             {/* Suggestions Grid */}
             <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
-              {defaultSuggestions.map((s, idx) => (
+              {normalizedSuggestions.map((text, idx) => (
                 <button
                   key={idx}
-                  onClick={() => onSelectSuggestion ? onSelectSuggestion(s) : onSendMessage(s)}
+                  onClick={() => onSelectSuggestion ? onSelectSuggestion(text) : onSendMessage(text)}
                   className="p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-teal-500/40 text-xs text-slate-300 hover:text-white transition-all text-left group flex items-start justify-between gap-2 shadow-sm"
                 >
-                  <span>{s}</span>
+                  <span>{typeof text === 'string' ? text : String(text)}</span>
                   <Sparkles className="w-3.5 h-3.5 text-slate-600 group-hover:text-teal-400 shrink-0 mt-0.5" />
                 </button>
               ))}
