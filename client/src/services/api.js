@@ -1,4 +1,6 @@
-const API_BASE = '/api';
+const API_BASE = (typeof window !== 'undefined' && window.location.pathname.startsWith('/ask-rodrigo'))
+  ? '/ask-rodrigo/api'
+  : '/api';
 
 /**
  * Sends a chat message via standard POST
