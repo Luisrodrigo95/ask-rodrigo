@@ -1,5 +1,14 @@
 [
   {
+    "id": "evt_today_1",
+    "title": "Auditoría de Hardening y Nginx SSL",
+    "category": "Servidor",
+    "date": "2026-10-24",
+    "time": "14:30",
+    "description": "Verificación de directivas de seguridad, Nginx reverse proxy y certificados Let's Encrypt.",
+    "priority": "high"
+  },
+  {
     "id": "evt_1",
     "title": "Mantenimiento Preventivo VPS",
     "category": "Servidor",
@@ -15,6 +24,15 @@
     "date": "2026-10-26",
     "time": "11:00",
     "description": "Auditoría de confirmaciones de citas consulares recibidas por IMAP.",
+    "priority": "medium"
+  },
+  {
+    "id": "evt_3",
+    "title": "Sprint PresWin & WiwiShop API",
+    "category": "Proyecto",
+    "date": "2026-10-27",
+    "time": "17:00",
+    "description": "Optimización de consultas de precios y catálogo de productos.",
     "priority": "medium"
   }
 ]

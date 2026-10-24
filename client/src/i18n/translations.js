@@ -130,7 +130,7 @@ export const translations = {
     },
     calendar: {
       title: "Rodrigo's Calendar & Schedule",
-      subtitle: "Consular appointments, scheduled VPS maintenance, and milestones.",
+      subtitle: "Consular appointments, scheduled VPS maintenance, and project milestones.",
       newEvent: "New Event",
       closeForm: "Close Form",
       guestNotice: "Read-Only Mode (Guest)",
@@ -139,7 +139,7 @@ export const translations = {
       category: "Category",
       catAppointment: "Consular / Immigration Appointment",
       catServer: "VPS / Server Maintenance",
-      catWork: "Work / ZAP-Hosting / Projects",
+      catWork: "Projects & Development",
       catPersonal: "Personal",
       date: "Date",
       time: "Time",
@@ -150,7 +150,13 @@ export const translations = {
       emptyTitle: "No events scheduled",
       emptyDescAdmin: "Create a new event using the button above.",
       emptyDescGuest: "Rodrigo's schedule is currently clear.",
-      deleteConfirm: 'Delete event "{title}"?'
+      deleteConfirm: 'Delete event "{title}"?',
+      viewMonth: "Month",
+      viewWeek: "Week",
+      viewDay: "Day",
+      todayBtn: "Today",
+      searchPlaceholder: "Search calendar...",
+      noEventsDay: "No events scheduled for this day"
     },
     login: {
       title: "Access Ask-Rodrigo",
@@ -344,7 +350,7 @@ export const translations = {
     },
     calendar: {
       title: "Calendario & Agenda de Rodrigo",
-      subtitle: "Citas consulares, mantenimientos programados del VPS y fechas clave.",
+      subtitle: "Citas consulares, mantenimientos programados del VPS y proyectos.",
       newEvent: "Nuevo Evento",
       closeForm: "Cerrar Formulario",
       guestNotice: "Modo Lectura (Invitado)",
@@ -353,7 +359,7 @@ export const translations = {
       category: "Categoría",
       catAppointment: "Cita Consular / Extranjería",
       catServer: "Mantenimiento VPS / Servidor",
-      catWork: "Trabajo / ZAP-Hosting / Proyectos",
+      catWork: "Proyectos & Desarrollo",
       catPersonal: "Personal",
       date: "Fecha",
       time: "Hora",
@@ -364,7 +370,13 @@ export const translations = {
       emptyTitle: "No hay eventos agendados",
       emptyDescAdmin: "Crea uno nuevo usando el botón de arriba.",
       emptyDescGuest: "La agenda de Rodrigo está actualmente vacía.",
-      deleteConfirm: '¿Eliminar evento "{title}"?'
+      deleteConfirm: '¿Eliminar evento "{title}"?',
+      viewMonth: "Mes",
+      viewWeek: "Semana",
+      viewDay: "Día",
+      todayBtn: "Hoy",
+      searchPlaceholder: "Buscar en calendario...",
+      noEventsDay: "Sin eventos programados para este día"
     },
     login: {
       title: "Acceso a Ask-Rodrigo",

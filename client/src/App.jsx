@@ -548,16 +548,14 @@ export function App() {
               />
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto bg-paper p-4">
-              <CalendarView
-                events={calendarEvents}
-                onCreateEvent={handleCreateEvent}
-                onDeleteEvent={handleDeleteEvent}
-                loading={calendarLoading}
-                currentUser={currentUser}
-                t={t}
-              />
-            </div>
+            <CalendarView
+              events={calendarEvents}
+              onCreateEvent={handleCreateEvent}
+              onDeleteEvent={handleDeleteEvent}
+              loading={calendarLoading}
+              currentUser={currentUser}
+              t={t}
+            />
           )}
         </div>
       </div>

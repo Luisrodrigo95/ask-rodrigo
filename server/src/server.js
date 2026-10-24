@@ -14,11 +14,19 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
 dotenv.config();
 
+// Process crash guards to prevent silent Node crashes
+process.on('uncaughtException', (err) => {
+  console.error('[Ask-Rodrigo Uncaught Exception]:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Ask-Rodrigo Unhandled Rejection]:', reason);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3005;
 
-// Trust Nginx reverse proxy headers (X-Forwarded-For, X-Forwarded-Proto)
-app.set('trust proxy', 1);
+// Trust Nginx and Cloudflare reverse proxy headers (X-Forwarded-For, X-Forwarded-Proto)
+app.set('trust proxy', true);
 
 // Security Middleware with custom CSP & same-origin-allow-popups for Google OAuth
 app.use(
@@ -51,19 +59,19 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiter for chat endpoint (protection against abuse)
 const chatLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 60, // max 60 requests per minute per IP
+  max: 120, // max 120 requests per minute
   message: {
     error: 'Demasiadas solicitudes. Por favor espera un momento.'
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { xForwardedForHeader: false, default: false }
+  validate: false
 });
 
 app.use('/api/chat', chatLimiter);

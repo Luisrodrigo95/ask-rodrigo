@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ask_rodrigo_jwt_fallback_secret_change_in_production';
+function getJwtSecret() {
+  return process.env.JWT_SECRET || 'ask_rodrigo_jwt_fallback_secret_change_in_production';
+}
 
 /**
  * Extracts and verifies JWT from Authorization header
@@ -14,7 +16,7 @@ export function authenticateToken(req, res, next) {
     return next();
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+  jwt.verify(token, getJwtSecret(), (err, decoded) => {
     if (err) {
       req.user = null;
       return next();
@@ -52,5 +54,5 @@ export function requireAdmin(req, res, next) {
  * Sign token helper
  */
 export function signUserToken(payload, expiresIn = '30d') {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn });
 }
