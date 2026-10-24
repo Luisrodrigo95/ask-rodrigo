@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User } from 'lucide-react';
+import { User, LogOut } from 'lucide-react';
 import { PrimaryRail } from './components/PrimaryRail';
 import { SessionDrawer } from './components/SessionDrawer';
 import { SubagentPanel } from './components/SubagentPanel';
@@ -444,6 +444,7 @@ export function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
+        onLogout={handleLogout}
         t={t}
       />
 
@@ -488,6 +489,15 @@ export function App() {
             >
               <User className="w-4 h-4" />
             </button>
+            {currentUser?.role === 'admin' && (
+              <button
+                onClick={handleLogout}
+                className="p-1 rounded-[6px] text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                title={t.rail?.logout || 'Cerrar sesión'}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 

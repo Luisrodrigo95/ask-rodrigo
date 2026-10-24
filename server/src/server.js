@@ -140,3 +140,21 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 // Configure 15-minute timeout for extended AGy-cli tasks
 server.setTimeout(900000);
 server.keepAliveTimeout = 65000;
+
+// Graceful shutdown handlers to prevent abrupt SSE drop on PM2 reloads
+const handleGracefulShutdown = (signal) => {
+  console.log(`[Ask-Rodrigo] ${signal} signal received: closing HTTP server gracefully...`);
+  server.close(() => {
+    console.log('[Ask-Rodrigo] HTTP server closed cleanly.');
+    process.exit(0);
+  });
+  // Force exit after 8 seconds if lingering connections don't close
+  setTimeout(() => {
+    console.warn('[Ask-Rodrigo] Forcing process exit after shutdown timeout.');
+    process.exit(0);
+  }, 8000).unref();
+};
+
+process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
+

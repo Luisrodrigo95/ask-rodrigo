@@ -195,16 +195,37 @@ export function streamChatMessage(message, conversationId, callbacks, workspace 
     })
     .catch(async (err) => {
       if (err.name === 'AbortError') return;
-      console.warn('[streamChatMessage] Stream error, attempting fallback to standard POST /chat:', err.message);
-      try {
-        if (onStatus) onStatus({ message: 'Conectando mediante canal estándar...' });
-        const res = await sendChatMessage(message, conversationId);
-        if (res.conversationId && onInit) onInit({ conversationId: res.conversationId });
-        if (res.reply && onDelta) onDelta(res.reply);
-        if (onDone) onDone(res);
-      } catch (fallbackErr) {
-        if (onError) onError(fallbackErr.message || err.message);
+      console.warn('[streamChatMessage] Stream error, attempting resilient fallback to POST /chat:', err.message);
+
+      const maxRetries = 3;
+      let lastErr = err;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          if (onStatus) {
+            onStatus({
+              message:
+                attempt === 1
+                  ? 'Reconectando con el servidor...'
+                  : `Reintentando conexión con el servidor (${attempt}/${maxRetries})...`
+            });
+          }
+          // Delay with backoff between attempts to allow server/proxy recovery (1s, 2.5s)
+          if (attempt > 1) {
+            await new Promise((r) => setTimeout(r, (attempt - 1) * 1500));
+          }
+          const res = await sendChatMessage(message, conversationId);
+          if (res.conversationId && onInit) onInit({ conversationId: res.conversationId });
+          if (res.reply && onDelta) onDelta(res.reply);
+          if (onDone) onDone(res);
+          return;
+        } catch (fallbackErr) {
+          lastErr = fallbackErr;
+          console.warn(`[streamChatMessage] Fallback attempt ${attempt}/${maxRetries} failed:`, fallbackErr.message);
+        }
       }
+
+      if (onError) onError(lastErr.message || 'Error de conexión con el servidor.');
     });
 
   return () => controller.abort();

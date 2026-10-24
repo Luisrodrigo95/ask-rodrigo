@@ -14,7 +14,8 @@ import {
   User,
   Clock,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  LogOut
 } from 'lucide-react';
 
 export function PrimaryRail({
@@ -26,6 +27,7 @@ export function PrimaryRail({
   onOpenSettings,
   currentUser,
   onOpenLogin,
+  onLogout,
   t
 }) {
   const [secondsElapsed, setSecondsElapsed] = useState(7420); // Simulated work session stopwatch
@@ -272,43 +274,74 @@ export function PrimaryRail({
           )}
         </button>
 
-        {/* User Card / Login Trigger */}
+        {/* User Card / Login Trigger & Logout */}
         <div className="mt-1 pt-1.5 border-t border-edge/60">
-          <button
-            onClick={() => (isAdmin ? onOpenProfile() : onOpenLogin())}
-            className={`flex w-full items-center gap-2 rounded-[10px] p-1.5 text-left transition-colors hover:bg-sunken cursor-pointer ${
-              isCollapsed ? 'justify-center' : ''
-            }`}
-            title={currentUser?.email || currentUser?.name || 'User'}
-          >
-            {currentUser?.picture ? (
-              <img
-                src={currentUser.picture}
-                alt="Avatar"
-                className="w-7 h-7 rounded-full object-cover ring-1 ring-edge shrink-0"
-              />
-            ) : (
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${
-                  isAdmin
-                    ? 'bg-gradient-to-tr from-teal-500 to-emerald-400'
-                    : 'bg-gradient-to-tr from-slate-600 to-slate-500'
-                }`}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => (isAdmin ? onOpenProfile() : onOpenLogin())}
+              className={`flex flex-1 min-w-0 items-center gap-2 rounded-[10px] p-1.5 text-left transition-colors hover:bg-sunken cursor-pointer ${
+                isCollapsed ? 'justify-center' : ''
+              }`}
+              title={currentUser?.email || currentUser?.name || 'User'}
+            >
+              {currentUser?.picture ? (
+                <img
+                  src={currentUser.picture}
+                  alt="Avatar"
+                  className="w-7 h-7 rounded-full object-cover ring-1 ring-edge shrink-0"
+                />
+              ) : (
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${
+                    isAdmin
+                      ? 'bg-gradient-to-tr from-teal-500 to-emerald-400'
+                      : 'bg-gradient-to-tr from-slate-600 to-slate-500'
+                  }`}
+                >
+                  {isAdmin ? 'RG' : <User className="w-3.5 h-3.5" />}
+                </div>
+              )}
+              {!isCollapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-ink">
+                    {currentUser?.name || (isAdmin ? 'Rodrigo García' : 'Guest Explorer')}
+                  </p>
+                  <p className="truncate text-[10px] text-muted">
+                    {currentUser?.email || (isAdmin ? 'lg2012garcia@gmail.com' : 'Click to authenticate')}
+                  </p>
+                </div>
+              )}
+            </button>
+
+            {/* Logout Button (when logged in / admin) */}
+            {isAdmin && !isCollapsed && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onLogout?.();
+                }}
+                className="flex items-center justify-center w-7 h-7 shrink-0 rounded-[8px] text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                title={tr.logout || 'Cerrar sesión'}
+                aria-label="Cerrar sesión"
               >
-                {isAdmin ? 'RG' : <User className="w-3.5 h-3.5" />}
-              </div>
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
             )}
-            {!isCollapsed && (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold text-ink">
-                  {currentUser?.name || (isAdmin ? 'Rodrigo García' : 'Guest Explorer')}
-                </p>
-                <p className="truncate text-[10px] text-muted">
-                  {isAdmin ? 'lg2012garcia@gmail.com' : 'Click to authenticate'}
-                </p>
-              </div>
-            )}
-          </button>
+          </div>
+
+          {/* Collapsed mode logout icon */}
+          {isAdmin && isCollapsed && (
+            <button
+              type="button"
+              onClick={() => onLogout?.()}
+              className="mt-1 flex w-full items-center justify-center h-7 rounded-[8px] text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+              title={tr.logout || 'Cerrar sesión'}
+              aria-label="Cerrar sesión"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     </nav>

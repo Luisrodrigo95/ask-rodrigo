@@ -55,7 +55,8 @@ export const translations = {
       search: "Search...",
       settings: "Settings",
       collapse: "Collapse rail",
-      expand: "Expand rail"
+      expand: "Expand rail",
+      logout: "Sign Out"
     },
     drawer: {
       title: "Chats",
@@ -275,7 +276,8 @@ export const translations = {
       search: "Buscar...",
       settings: "Ajustes",
       collapse: "Colapsar barra",
-      expand: "Expandir barra"
+      expand: "Expandir barra",
+      logout: "Cerrar sesión"
     },
     drawer: {
       title: "Chats",
