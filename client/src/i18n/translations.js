@@ -218,7 +218,21 @@ export const translations = {
       "Verify systemd service health and PM2 running processes",
       "Explain the architecture of TotiMigraciones, PresWin and Appointment Checker",
       "Check recent Nginx access and error logs for anomalies"
-    ]
+    ],
+    profileModal: {
+      title: "Professional Profile —",
+      executiveSummary: "Executive Summary",
+      education: "Education & Degree",
+      workExperience: "Work Experience",
+      projects: "Production Projects",
+      skills: "Technical Skills & Competencies",
+      openProject: "Open",
+      directContact: "Direct Contact:",
+      email: "Email",
+      linkedin: "LinkedIn",
+      phone: "Phone",
+      close: "Close profile"
+    }
   },
 
   es: {
@@ -439,6 +453,20 @@ export const translations = {
       "Verifica el estado de los servicios systemd y procesos PM2",
       "Explícame la arquitectura de TotiMigraciones, PresWin y Appointment Checker",
       "Revisa los logs recientes de Nginx para detectar anomalías"
-    ]
+    ],
+    profileModal: {
+      title: "Perfil Profesional —",
+      executiveSummary: "Resumen Ejecutivo",
+      education: "Educación & Título",
+      workExperience: "Experiencia Laboral",
+      projects: "Proyectos en Producción",
+      skills: "Habilidades Técnicas & Competencias",
+      openProject: "Abrir",
+      directContact: "Contacto Directo:",
+      email: "Email",
+      linkedin: "LinkedIn",
+      phone: "Teléfono",
+      close: "Cerrar perfil"
+    }
   }
 };

@@ -589,6 +589,8 @@ export function App() {
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         profileData={profileData}
+        currentLanguage={language}
+        t={t}
       />
 
       {/* Login & Switch Role Modal */}
