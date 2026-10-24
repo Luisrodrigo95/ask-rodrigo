@@ -7,11 +7,12 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/api.js';
 
-// Setup environment
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Setup environment: load from server/.env, then fallback to root .env
+dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3005;
