@@ -34,8 +34,25 @@ export async function executeAgyPrompt(message, options = {}) {
   } = options;
 
   return new Promise((resolve, reject) => {
-    // Pipe prompt through stdin via '-p' '-' to avoid Linux ARG_MAX / MAX_ARG_STRLEN limits (spawn E2BIG)
-    const args = ['-p', '-', '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+    let finalPrompt = message;
+    if (message && message.length > 50000) {
+      // Auto-offload huge prompt texts to /home/bombi/uploads to prevent CLI argument overflow (spawn E2BIG)
+      try {
+        const uploadDir = '/home/bombi/uploads';
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const autoFile = path.join(uploadDir, `prompt_${Date.now()}.txt`);
+        fs.writeFileSync(autoFile, message, 'utf8');
+        try {
+          fs.chmodSync(autoFile, 0o664);
+          fs.chownSync(autoFile, 1001, 1001);
+        } catch {}
+        finalPrompt = `📎 [Texto extenso guardado automáticamente en el servidor]: ${autoFile}\nPor favor lee el contenido completo del archivo usando tus herramientas de lectura para responder y ejecutar la solicitud del usuario.`;
+      } catch (errOffload) {
+        console.warn('[AGy Bridge] Failed to offload huge prompt:', errOffload.message);
+      }
+    }
+
+    const args = ['-p', finalPrompt, '--output-format', 'stream-json', '--dangerously-skip-permissions'];
     if (conversationId && typeof conversationId === 'string' && conversationId.trim() !== '') {
       args.push('--conversation', conversationId.trim());
     }
@@ -56,16 +73,6 @@ export async function executeAgyPrompt(message, options = {}) {
       env,
       stdio: ['pipe', 'pipe', 'pipe']
     });
-
-    child.stdin.on('error', (err) => {
-      if (err.code !== 'EPIPE') {
-        console.warn('[AGy Bridge stdin error]:', err.message);
-      }
-    });
-
-    // Write prompt message directly to child stdin and close
-    child.stdin.write(message);
-    child.stdin.end();
 
     const timer = setTimeout(() => {
       timedOut = true;

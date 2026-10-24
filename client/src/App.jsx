@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Header } from './components/Header';
-import { Sidebar } from './components/Sidebar';
+import { User } from 'lucide-react';
+import { PrimaryRail } from './components/PrimaryRail';
+import { SessionDrawer } from './components/SessionDrawer';
+import { SubagentPanel } from './components/SubagentPanel';
+import { FloatingDock } from './components/FloatingDock';
 import { ChatView } from './components/ChatView';
 import { MetricsView } from './components/MetricsView';
 import { CalendarView } from './components/CalendarView';
@@ -40,6 +43,12 @@ export function App() {
   const [currentUser, setCurrentUser] = useState(() => getStoredUser() || { role: 'guest', name: 'Guest' });
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Layout states for Dual-Sidebar & Subagents Inspector (Ask Marvin DNA)
+  const [isRailCollapsed, setIsRailCollapsed] = useState(() => localStorage.getItem('ask_rodrigo_rail_collapsed') === 'true');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [isSubagentsOpen, setIsSubagentsOpen] = useState(false);
+  const [activeWorkspace, setActiveWorkspace] = useState(() => localStorage.getItem('ask_rodrigo_workspace') || 'normal');
 
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
@@ -160,21 +169,36 @@ export function App() {
       const list = data.conversations || [];
       setConversations(list);
 
-      // Automatically sync and select stored or most recent session
-      if (autoSelect && list.length > 0) {
-        const storedConvId = localStorage.getItem('ask_rodrigo_active_conv');
-        const targetId = (storedConvId && list.some(c => c.id === storedConvId))
-          ? storedConvId
-          : list[0].id;
-
-        if (targetId && !activeConversationId) {
-          handleSelectConversation(targetId);
-        }
+      const savedConv = localStorage.getItem('ask_rodrigo_active_conv');
+      if (autoSelect && list.length > 0 && !activeConversationId) {
+        const targetId = list.find((c) => c.id === savedConv) ? savedConv : list[0].id;
+        handleSelectConversation(targetId);
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);
     } finally {
       setConversationsLoading(false);
+    }
+  };
+
+  const handleNewChat = () => {
+    if (isGenerating) return;
+    setActiveConversationId(null);
+    localStorage.removeItem('ask_rodrigo_active_conv');
+    setMessages([]);
+    setStreamingReply('');
+    setActiveTab('chat');
+  };
+
+  const handleDeleteConversation = async (id) => {
+    try {
+      await deleteConversation(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (activeConversationId === id) {
+        handleNewChat();
+      }
+    } catch (err) {
+      console.error('Error deleting conversation:', err);
     }
   };
 
@@ -254,16 +278,21 @@ export function App() {
     await handleGuestLogin();
   };
 
-  // 3. Settings Handlers
+  // 3. Settings & Workspace Handlers
   const handleChangeLanguage = (newLang) => {
     setLanguage(newLang);
     localStorage.setItem('ask_rodrigo_lang', newLang);
   };
 
   const handleToggleSpeech = () => {
-    const next = !speechEnabled;
-    setSpeechEnabled(next);
-    localStorage.setItem('ask_rodrigo_speech', String(next));
+    setSpeechEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem('ask_rodrigo_speech', String(next));
+      if (!next && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      return next;
+    });
   };
 
   const handleChangeSpeechRate = (rate) => {
@@ -276,30 +305,21 @@ export function App() {
     localStorage.setItem('ask_rodrigo_google_client_id', id);
   };
 
-  const handleNewChat = () => {
-    if (isGenerating) return;
-    setActiveConversationId(null);
-    localStorage.removeItem('ask_rodrigo_active_conv');
-    setMessages([]);
-    setStreamingReply('');
-    setStreamingStatus('');
-    setActiveTab('chat');
+  const handleToggleRail = () => {
+    setIsRailCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('ask_rodrigo_rail_collapsed', String(next));
+      return next;
+    });
   };
 
-  const handleDeleteConversation = async (id) => {
-    try {
-      await deleteConversation(id);
-      if (activeConversationId === id) {
-        handleNewChat();
-      }
-      loadConversations();
-    } catch (err) {
-      alert('Error archiving session: ' + err.message);
-    }
+  const handleSelectWorkspace = (ws) => {
+    setActiveWorkspace(ws);
+    localStorage.setItem('ask_rodrigo_workspace', ws);
   };
 
-  // 5. Send Message via Stream
-  const handleSendMessage = (text) => {
+  // 4. Send Message via Stream with Workspace (cwd) parameter
+  const handleSendMessage = (text, targetWorkspace = activeWorkspace) => {
     if (!text || isGenerating) return;
 
     const userMsg = {
@@ -369,10 +389,10 @@ export function App() {
         ]);
         setStreamingReply('');
       }
-    });
+    }, targetWorkspace);
   };
 
-  // 6. Speech Synthesis with language and rate support
+  // 5. Speech Synthesis with language and rate support
   const speakText = (text) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -383,7 +403,7 @@ export function App() {
     window.speechSynthesis.speak(utterance);
   };
 
-  // 7. Calendar Handlers
+  // 6. Calendar Handlers
   const handleCreateEvent = async (eventData) => {
     if (currentUser?.role !== 'admin') {
       setIsLoginOpen(true);
@@ -411,71 +431,148 @@ export function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-darkbg text-slate-100 overflow-hidden">
-      {/* Top Navbar */}
-      <Header
+    <div className="flex h-screen w-screen bg-paper text-ink overflow-hidden select-none">
+      {/* 1. Primary Left Navigation Rail (224px or 64px collapsed) */}
+      <PrimaryRail
         activeTab={activeTab}
         onSelectTab={setActiveTab}
+        isCollapsed={isRailCollapsed}
+        onToggleCollapse={handleToggleRail}
         onOpenProfile={() => setIsProfileOpen(true)}
-        speechEnabled={speechEnabled}
-        onToggleSpeech={handleToggleSpeech}
-        health={health}
-        metricsLoading={metricsLoading}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
-        onLogout={handleLogout}
-        onOpenSettings={() => setIsSettingsOpen(true)}
         t={t}
       />
 
-      {/* Main Workspace */}
-      <div className="flex-1 flex overflow-hidden">
-        {activeTab === 'chat' ? (
-          <>
-            <Sidebar
-              conversations={conversations}
-              activeId={activeConversationId}
-              onSelectConversation={handleSelectConversation}
-              onNewChat={handleNewChat}
-              onDeleteConversation={handleDeleteConversation}
-              loading={conversationsLoading}
-              currentUser={currentUser}
-              onOpenLogin={() => setIsLoginOpen(true)}
-              t={t}
-            />
-            <ChatView
-              conversationId={activeConversationId}
-              messages={messages}
-              streamingReply={streamingReply}
-              streamingStatus={streamingStatus}
-              isGenerating={isGenerating}
-              onSendMessage={handleSendMessage}
-              suggestions={suggestions}
-              onSelectSuggestion={handleSendMessage}
-              speechEnabled={speechEnabled}
-              onSpeakText={speakText}
-              currentUser={currentUser}
-              t={t}
-            />
-          </>
-        ) : activeTab === 'metrics' ? (
-          <MetricsView
-            metrics={metrics}
-            loading={metricsLoading}
-            onRefresh={loadMetrics}
-            t={t}
-          />
-        ) : (
-          <CalendarView
-            events={calendarEvents}
-            onCreateEvent={handleCreateEvent}
-            onDeleteEvent={handleDeleteEvent}
-            loading={calendarLoading}
-            currentUser={currentUser}
-            t={t}
-          />
-        )}
+      {/* 2. Main Workstation Container */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
+        {/* Mobile Header (Visible only on screens below md) */}
+        <div className="md:hidden flex items-center justify-between px-3.5 py-2.5 border-b border-edge bg-panel">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className="grid h-7 w-7 place-items-center rounded-[8px] bg-gradient-to-br from-[#d9714d] to-[#b4532f] text-xs font-bold text-white shadow-sm"
+            >
+              R
+            </button>
+            <span className="text-sm font-semibold text-ink">Ask Rodrigo</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`px-2 py-1 rounded-[6px] text-xs font-medium ${activeTab === 'chat' ? 'bg-accent text-white' : 'text-muted'}`}
+            >
+              Chat
+            </button>
+            <button
+              onClick={() => setActiveTab('calendar')}
+              className={`px-2 py-1 rounded-[6px] text-xs font-medium ${activeTab === 'calendar' ? 'bg-accent text-white' : 'text-muted'}`}
+            >
+              Cal
+            </button>
+            {currentUser?.role === 'admin' && (
+              <button
+                onClick={() => setActiveTab('metrics')}
+                className={`px-2 py-1 rounded-[6px] text-xs font-medium ${activeTab === 'metrics' ? 'bg-accent text-white' : 'text-muted'}`}
+              >
+                Ops
+              </button>
+            )}
+            <button
+              onClick={() => (currentUser?.role === 'admin' ? setIsProfileOpen(true) : setIsLoginOpen(true))}
+              className="p-1 rounded-[6px] text-muted hover:text-ink"
+            >
+              <User className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content Pane */}
+        <div className="flex-1 flex overflow-hidden min-w-0">
+          {activeTab === 'chat' ? (
+            <>
+              {/* Dual-Sidebar Drawer: Date-grouped sessions */}
+              <SessionDrawer
+                conversations={conversations}
+                activeId={activeConversationId}
+                onSelectConversation={handleSelectConversation}
+                onNewChat={handleNewChat}
+                onDeleteConversation={handleDeleteConversation}
+                loading={conversationsLoading}
+                currentUser={currentUser}
+                onOpenLogin={() => setIsLoginOpen(true)}
+                isDrawerOpen={isDrawerOpen}
+                onCloseDrawer={() => setIsDrawerOpen(false)}
+                t={t}
+              />
+
+              {/* Central Chat View */}
+              <ChatView
+                conversationId={activeConversationId}
+                messages={messages}
+                streamingReply={streamingReply}
+                streamingStatus={streamingStatus}
+                isGenerating={isGenerating}
+                onSendMessage={handleSendMessage}
+                suggestions={suggestions}
+                onSelectSuggestion={(sug) => handleSendMessage(sug, activeWorkspace)}
+                speechEnabled={speechEnabled}
+                onSpeakText={speakText}
+                currentUser={currentUser}
+                activeWorkspace={activeWorkspace}
+                onSelectWorkspace={handleSelectWorkspace}
+                isSubagentsOpen={isSubagentsOpen}
+                onToggleSubagents={() => setIsSubagentsOpen((prev) => !prev)}
+                t={t}
+              />
+
+              {/* Subagents & Dev Inspector Panel */}
+              <SubagentPanel
+                isOpen={isSubagentsOpen}
+                onClose={() => setIsSubagentsOpen(false)}
+                activeWorkspace={activeWorkspace}
+                onSelectWorkspace={handleSelectWorkspace}
+                currentUser={currentUser}
+                t={t}
+              />
+            </>
+          ) : activeTab === 'metrics' ? (
+            <div className="flex-1 overflow-y-auto bg-paper p-4">
+              <MetricsView
+                metrics={metrics}
+                loading={metricsLoading}
+                onRefresh={loadMetrics}
+                t={t}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto bg-paper p-4">
+              <CalendarView
+                events={calendarEvents}
+                onCreateEvent={handleCreateEvent}
+                onDeleteEvent={handleDeleteEvent}
+                loading={calendarLoading}
+                currentUser={currentUser}
+                t={t}
+              />
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Floating Quick Dock (Bottom-Right) */}
+      <FloatingDock
+        currentLanguage={language}
+        onToggleLanguage={() => handleChangeLanguage(language === 'en' ? 'es' : 'en')}
+        speechEnabled={speechEnabled}
+        onToggleSpeech={handleToggleSpeech}
+        isSubagentsOpen={isSubagentsOpen}
+        onToggleSubagents={() => setIsSubagentsOpen((prev) => !prev)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        isAdmin={currentUser?.role === 'admin'}
+      />
 
       {/* Profile Modal */}
       <ProfileModal

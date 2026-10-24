@@ -43,6 +43,49 @@ export const translations = {
       footerRoleAdmin: "Admin (Root)",
       footerRoleGuest: "Guest"
     },
+    rail: {
+      chats: "Chats",
+      waiting: "Waiting for you",
+      calendar: "Calendar",
+      tasks: "Tasks",
+      notes: "Notes",
+      development: "Development",
+      infrastructure: "Metrics & Server",
+      clockedIn: "Clocked in",
+      search: "Search...",
+      settings: "Settings",
+      collapse: "Collapse rail",
+      expand: "Expand rail"
+    },
+    drawer: {
+      title: "Chats",
+      newChat: "New",
+      searchPlaceholder: "Search chats …",
+      filterAll: "All",
+      filterActive: "Active",
+      filterQuestions: "Questions",
+      filterArchived: "Archived",
+      today: "Today",
+      yesterday: "Yesterday",
+      older: "Older"
+    },
+    subagents: {
+      title: "Subagents & Inspector",
+      subtitle: "Antigravity active agents and server environment",
+      activeSubagents: "Antigravity Subagents",
+      workspaceTarget: "Target Directory (cwd)",
+      serverUploads: "Uploaded Files (/home/bombi/uploads)",
+      noUploads: "No files uploaded yet",
+      close: "Close Inspector"
+    },
+    workspaces: {
+      workIn: "Work in:",
+      normal: "Normal chat",
+      portfolio: "Portfolio",
+      preswin: "PresWin",
+      totimigraciones: "TotiMigraciones",
+      wiwishop: "WiwiShop"
+    },
     chat: {
       session: "Session:",
       sessionNew: "New AGy-cli Session",
@@ -213,6 +256,49 @@ export const translations = {
       yesterday: "Ayer",
       footerRoleAdmin: "Admin (Root)",
       footerRoleGuest: "Invitado"
+    },
+    rail: {
+      chats: "Chats",
+      waiting: "En espera",
+      calendar: "Calendario",
+      tasks: "Tareas",
+      notes: "Notas",
+      development: "Desarrollo",
+      infrastructure: "Métricas & Servidor",
+      clockedIn: "Fichaje activo",
+      search: "Buscar...",
+      settings: "Ajustes",
+      collapse: "Colapsar barra",
+      expand: "Expandir barra"
+    },
+    drawer: {
+      title: "Chats",
+      newChat: "Nuevo",
+      searchPlaceholder: "Buscar chats …",
+      filterAll: "Todos",
+      filterActive: "Activos",
+      filterQuestions: "Consultas",
+      filterArchived: "Archivados",
+      today: "Hoy",
+      yesterday: "Ayer",
+      older: "Anteriores"
+    },
+    subagents: {
+      title: "Subagentes & Inspector",
+      subtitle: "Subagentes activos de Antigravity y entorno del VPS",
+      activeSubagents: "Subagentes de Antigravity",
+      workspaceTarget: "Directorio de trabajo (cwd)",
+      serverUploads: "Archivos subidos (/home/bombi/uploads)",
+      noUploads: "No hay archivos subidos aún",
+      close: "Cerrar Inspector"
+    },
+    workspaces: {
+      workIn: "Trabajar en:",
+      normal: "Chat normal",
+      portfolio: "Portfolio",
+      preswin: "PresWin",
+      totimigraciones: "TotiMigraciones",
+      wiwishop: "WiwiShop"
     },
     chat: {
       session: "Sesión:",

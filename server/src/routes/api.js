@@ -11,7 +11,8 @@ import {
   calendarDeleteHandler,
   suggestionsHandler,
   profileHandler,
-  healthHandler
+  healthHandler,
+  subagentsHandler
 } from '../controllers/chatController.js';
 import {
   loginGuest,
@@ -53,6 +54,7 @@ router.get('/conversations', requireAdmin, conversationsHandler);
 router.get('/conversations/:id', requireAdmin, conversationDetailHandler);
 router.delete('/conversations/:id', requireAdmin, deleteConversationHandler);
 router.get('/metrics', requireAdmin, metricsHandler);
+router.get('/subagents', requireAdmin, subagentsHandler);
 
 // --- Calendar Endpoints (Read: All, Write: Admin Only) ---
 router.get('/calendar', calendarGetHandler);

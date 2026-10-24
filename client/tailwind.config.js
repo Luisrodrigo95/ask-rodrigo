@@ -8,6 +8,15 @@ export default {
   theme: {
     extend: {
       colors: {
+        paper: '#0b0f17',
+        panel: '#111827',
+        sunken: '#182234',
+        edge: '#263346',
+        ink: '#f8fafc',
+        muted: '#94a3b8',
+        faint: '#64748b',
+        accent: '#14b8a6',
+        'accent-orange': '#d9714d',
         cyber: {
           50: '#f0fdfa',
           100: '#ccfbf1',

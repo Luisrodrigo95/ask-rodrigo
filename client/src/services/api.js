@@ -143,7 +143,7 @@ export async function sendChatMessage(message, conversationId = null, engine = '
 /**
  * Connects to the SSE stream for real-time token-by-token streaming
  */
-export function streamChatMessage(message, conversationId, callbacks) {
+export function streamChatMessage(message, conversationId, callbacks, workspace = 'normal') {
   const { onInit, onDelta, onDone, onError, onStatus } = callbacks;
 
   const url = `${API_BASE}/chat/stream`;
@@ -152,7 +152,7 @@ export function streamChatMessage(message, conversationId, callbacks) {
   fetch(url, {
     method: 'POST',
     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ message, conversationId }),
+    body: JSON.stringify({ message, conversationId, workspace }),
     signal: controller.signal
   })
     .then(async (response) => {
@@ -358,5 +358,16 @@ export async function fetchUploadsList() {
     headers: getAuthHeaders()
   });
   if (!response.ok) throw new Error('Error al listar archivos subidos');
+  return await response.json();
+}
+
+/**
+ * Antigravity Subagents
+ */
+export async function fetchSubagents() {
+  const response = await fetch(`${API_BASE}/subagents`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) throw new Error('Error al obtener lista de subagentes');
   return await response.json();
 }

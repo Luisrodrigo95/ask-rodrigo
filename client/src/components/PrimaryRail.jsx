@@ -1,0 +1,316 @@
+import React, { useState, useEffect } from 'react';
+import {
+  MessageSquare,
+  BellRing,
+  CalendarDays,
+  SquareCheckBig,
+  StickyNote,
+  CodeXml,
+  Cpu,
+  Search,
+  Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
+  User,
+  Clock,
+  ExternalLink,
+  ShieldCheck
+} from 'lucide-react';
+
+export function PrimaryRail({
+  activeTab,
+  onSelectTab,
+  isCollapsed,
+  onToggleCollapse,
+  onOpenProfile,
+  onOpenSettings,
+  currentUser,
+  onOpenLogin,
+  t
+}) {
+  const [secondsElapsed, setSecondsElapsed] = useState(7420); // Simulated work session stopwatch
+  const [isTimerRunning, setIsTimerRunning] = useState(true);
+
+  const isAdmin = currentUser?.role === 'admin';
+  const tr = t.rail;
+
+  useEffect(() => {
+    if (!isTimerRunning) return;
+    const interval = setInterval(() => {
+      setSecondsElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isTimerRunning]);
+
+  const formatTimer = (totalSeconds) => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const navItems = [
+    {
+      id: 'chat',
+      label: tr.chats,
+      icon: MessageSquare,
+      active: activeTab === 'chat',
+      onClick: () => onSelectTab('chat'),
+      badge: null
+    },
+    {
+      id: 'waiting',
+      label: tr.waiting,
+      icon: BellRing,
+      active: false,
+      onClick: () => onSelectTab('chat'),
+      badge: '0'
+    },
+    {
+      id: 'calendar',
+      label: tr.calendar,
+      icon: CalendarDays,
+      active: activeTab === 'calendar',
+      onClick: () => onSelectTab('calendar'),
+      badge: null
+    },
+    {
+      id: 'tasks',
+      label: tr.tasks,
+      icon: SquareCheckBig,
+      active: false,
+      onClick: () => onSelectTab('calendar'),
+      badge: null
+    },
+    {
+      id: 'notes',
+      label: tr.notes,
+      icon: StickyNote,
+      active: false,
+      onClick: () => onOpenProfile(),
+      badge: null
+    },
+    { divider: true },
+    {
+      id: 'development',
+      label: tr.development,
+      icon: CodeXml,
+      active: false,
+      onClick: () => onSelectTab('chat'),
+      badge: '5',
+      badgeColor: 'bg-accent/10 text-accent font-semibold'
+    },
+    {
+      id: 'metrics',
+      label: tr.infrastructure,
+      icon: Cpu,
+      active: activeTab === 'metrics',
+      onClick: () => onSelectTab('metrics'),
+      badge: isAdmin ? null : '🔒'
+    }
+  ];
+
+  return (
+    <nav
+      aria-label="Hauptnavigation"
+      data-v2-rail-root="true"
+      className={`relative hidden md:flex shrink-0 flex-col border-r border-edge bg-paper py-3 transition-all duration-200 select-none ${
+        isCollapsed ? 'w-16 px-2 items-center' : 'w-[224px] px-2.5 items-stretch'
+      }`}
+    >
+      {/* Top Branding / Logo */}
+      <div className={`mb-3 flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-1'}`}>
+        <button
+          onClick={() => onSelectTab('chat')}
+          className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-[#d9714d] to-[#b4532f] text-[15px] font-bold text-white shadow-[0_2px_8px_rgba(201,100,66,.35)] cursor-pointer hover:opacity-90 transition-opacity"
+          title="Ask Rodrigo"
+        >
+          R
+        </button>
+        {!isCollapsed && (
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[15px] font-semibold text-ink leading-tight">
+              Ask Rodrigo
+            </span>
+            <span className="text-[10px] font-mono text-muted flex items-center gap-1">
+              {isAdmin ? (
+                <span className="text-emerald-400 font-medium flex items-center gap-0.5">
+                  <ShieldCheck className="w-2.5 h-2.5" /> AGy Admin
+                </span>
+              ) : (
+                <span>Guest Mode</span>
+              )}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation List */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [scrollbar-width:none] items-stretch gap-0.5">
+        {navItems.map((item, idx) => {
+          if (item.divider) {
+            return (
+              <div
+                key={`div-${idx}`}
+                className={`my-1.5 h-px bg-edge ${isCollapsed ? 'w-8 mx-auto' : 'mx-2'}`}
+              />
+            );
+          }
+
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              onClick={item.onClick}
+              title={isCollapsed ? item.label : undefined}
+              className={`flex h-9 w-full shrink-0 items-center gap-2.5 rounded-[10px] px-2.5 text-[13.5px] transition-colors cursor-pointer ${
+                item.active
+                  ? 'bg-panel font-medium text-ink shadow-v2-sm ring-1 ring-edge'
+                  : 'text-ink/80 hover:bg-sunken hover:text-ink'
+              } ${isCollapsed ? 'justify-center px-0' : ''}`}
+            >
+              <span
+                className={`grid w-5 shrink-0 place-items-center ${
+                  item.active ? 'text-accent' : 'text-muted'
+                }`}
+              >
+                <Icon className="w-[18px] h-[18px]" />
+              </span>
+              {!isCollapsed && (
+                <>
+                  <span className="min-w-0 flex-1 text-left truncate">{item.label}</span>
+                  {item.badge && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.2 text-[11px] ${
+                        item.badgeColor || 'bg-sunken text-muted'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Marvin Clock-in Card */}
+      {!isCollapsed ? (
+        <div className="mx-0.5 my-2.5 p-2 rounded-[12px] bg-panel border border-edge shadow-v2-sm">
+          <div className="flex items-center justify-between gap-1 text-[11px] text-muted mb-1">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              {tr.clockedIn}
+            </span>
+            <span className="font-mono text-[11px] text-accent font-medium">
+              {formatTimer(secondsElapsed)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between pt-1 border-t border-edge/60">
+            <span className="text-[12px] font-medium text-ink truncate">
+              {currentUser?.name || 'Rodrigo García'}
+            </span>
+            <a
+              href="https://therodrigo.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted hover:text-accent p-0.5 transition-colors"
+              title="therodrigo.com"
+            >
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div className="my-2 flex justify-center">
+          <span
+            className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"
+            title={`${tr.clockedIn}: ${formatTimer(secondsElapsed)}`}
+          />
+        </div>
+      )}
+
+      {/* Bottom Utility Controls */}
+      <div className="pt-2 border-t border-edge flex flex-col gap-1 items-stretch">
+        <button
+          onClick={() => onSelectTab('chat')}
+          className={`flex h-8 items-center gap-2.5 rounded-[8px] text-[12.5px] text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer ${
+            isCollapsed ? 'justify-center w-full px-0' : 'px-2'
+          }`}
+          title={tr.search}
+        >
+          <Search className="w-4 h-4 shrink-0" />
+          {!isCollapsed && <span className="truncate">{tr.search}</span>}
+        </button>
+
+        <button
+          onClick={onOpenSettings}
+          className={`flex h-8 items-center gap-2.5 rounded-[8px] text-[12.5px] text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer ${
+            isCollapsed ? 'justify-center w-full px-0' : 'px-2'
+          }`}
+          title={tr.settings}
+        >
+          <Settings className="w-4 h-4 shrink-0" />
+          {!isCollapsed && <span className="truncate">{tr.settings}</span>}
+        </button>
+
+        <button
+          onClick={onToggleCollapse}
+          className={`flex h-8 items-center gap-2.5 rounded-[8px] text-[12.5px] text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer ${
+            isCollapsed ? 'justify-center w-full px-0' : 'px-2'
+          }`}
+          title={isCollapsed ? tr.expand : tr.collapse}
+        >
+          {isCollapsed ? (
+            <PanelLeftOpen className="w-4 h-4 shrink-0 text-accent" />
+          ) : (
+            <>
+              <PanelLeftClose className="w-4 h-4 shrink-0" />
+              <span className="truncate">{tr.collapse}</span>
+            </>
+          )}
+        </button>
+
+        {/* User Card / Login Trigger */}
+        <div className="mt-1 pt-1.5 border-t border-edge/60">
+          <button
+            onClick={() => (isAdmin ? onOpenProfile() : onOpenLogin())}
+            className={`flex w-full items-center gap-2 rounded-[10px] p-1.5 text-left transition-colors hover:bg-sunken cursor-pointer ${
+              isCollapsed ? 'justify-center' : ''
+            }`}
+            title={currentUser?.email || currentUser?.name || 'User'}
+          >
+            {currentUser?.picture ? (
+              <img
+                src={currentUser.picture}
+                alt="Avatar"
+                className="w-7 h-7 rounded-full object-cover ring-1 ring-edge shrink-0"
+              />
+            ) : (
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${
+                  isAdmin
+                    ? 'bg-gradient-to-tr from-teal-500 to-emerald-400'
+                    : 'bg-gradient-to-tr from-slate-600 to-slate-500'
+                }`}
+              >
+                {isAdmin ? 'RG' : <User className="w-3.5 h-3.5" />}
+              </div>
+            )}
+            {!isCollapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold text-ink">
+                  {currentUser?.name || (isAdmin ? 'Rodrigo García' : 'Guest Explorer')}
+                </p>
+                <p className="truncate text-[10px] text-muted">
+                  {isAdmin ? 'lg2012garcia@gmail.com' : 'Click to authenticate'}
+                </p>
+              </div>
+            )}
+          </button>
+        </div>
+      </div>
+    </nav>
+  );
+}

@@ -75,6 +75,14 @@ export async function chatHandler(req, res) {
   }
 }
 
+const WORKSPACE_MAP = {
+  normal: '/home/bombi',
+  portfolio: '/var/www/my-portfolio',
+  preswin: '/var/www/preswin',
+  totimigraciones: '/var/www/totimigraciones',
+  wiwishop: '/var/www/my-portfolio/public/wiwishop'
+};
+
 /**
  * Server-Sent Events (SSE) streaming endpoint for live token generation.
  * GET or POST /api/chat/stream
@@ -82,6 +90,7 @@ export async function chatHandler(req, res) {
 export async function chatStreamHandler(req, res) {
   const message = req.method === 'POST' ? req.body.message : req.query.message;
   const conversationId = req.method === 'POST' ? req.body.conversationId : req.query.conversationId;
+  const workspace = req.method === 'POST' ? req.body.workspace : req.query.workspace;
   const userRole = req.user?.role || 'guest';
 
   if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -136,13 +145,15 @@ export async function chatStreamHandler(req, res) {
       return;
     }
 
-    // 2. Admin Mode SSE: Native AGy-cli Bridge stream
-    sendEvent('status', { message: 'Iniciando turno en AGy-cli como Administrador...' });
+    // 2. Admin Mode SSE: Native AGy-cli Bridge stream with workspace cwd
+    const targetCwd = (workspace && WORKSPACE_MAP[workspace.toLowerCase()]) || '/home/bombi';
+    sendEvent('status', { message: `Iniciando turno en AGy-cli (${workspace || 'normal'} -> ${targetCwd})...` });
 
     let activeConvId = conversationId || null;
 
     const result = await executeAgyPrompt(message.trim(), {
       conversationId: activeConvId,
+      cwd: targetCwd,
       onInit: (assignedId) => {
         activeConvId = assignedId;
         sendEvent('init', { conversationId: assignedId });
@@ -308,4 +319,19 @@ export function healthHandler(req, res) {
     timestamp: new Date().toISOString(),
     aiEngine: 'AGy-cli Native + Grounded Knowledge Engine'
   });
+}
+
+/**
+ * Lists available subagents and execution units in Antigravity CLI (Admin only).
+ */
+export function subagentsHandler(req, res) {
+  const subagents = [
+    { id: 'research', name: 'Codebase Researcher', role: 'Exploración de código y análisis profundo', status: 'ready', type: 'system' },
+    { id: 'frontend-developer', name: 'Frontend Developer', role: 'React 19, Vite, Tailwind & UI', status: 'ready', type: 'system' },
+    { id: 'backend-security-coder', name: 'Security Architect', role: 'Tri-Guard Prompt Armor & Sanitización', status: 'active', type: 'security' },
+    { id: 'devops-troubleshooter', name: 'DevOps & SRE', role: 'Nginx, PM2, Systemd & VPS Linux', status: 'ready', type: 'infra' },
+    { id: 'database-architect', name: 'Database Architect', role: 'SQLite, Postgres & Cache local', status: 'ready', type: 'data' },
+    { id: 'code-reviewer', name: 'PR & Code Reviewer', role: 'Calidad de código, linting y tests', status: 'ready', type: 'quality' }
+  ];
+  return res.json({ subagents });
 }

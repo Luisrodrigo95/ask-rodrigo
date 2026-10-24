@@ -36,3 +36,21 @@
 .pulse-beacon {
   animation: pulse-ring 2s infinite ease-in-out;
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.shadow-v2-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.25), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+.shadow-v2-md {
+  box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.35), 0 0 1px 1px rgba(255, 255, 255, 0.06);
+}
+
