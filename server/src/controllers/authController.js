@@ -1,6 +1,6 @@
 import { signUserToken } from '../middleware/auth.js';
 
-const PRIMARY_ADMIN_EMAIL = 'lg2012garcia@gmail.com';
+const PRIMARY_ADMIN_EMAIL = process.env.PRIMARY_ADMIN_EMAIL || 'lg2012garcia@gmail.com';
 const ADMIN_PIN = process.env.ADMIN_PIN;
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || `${PRIMARY_ADMIN_EMAIL},contacto@therodrigo.com`)
   .split(',')
@@ -59,7 +59,11 @@ export function loginAdmin(req, res) {
     const cleanEmail = String(email).trim().toLowerCase();
     const cleanPin = String(pin).trim();
 
-    // Verify PIN first
+    // Verify PIN is configured and matches
+    if (!ADMIN_PIN) {
+      return res.status(500).json({ error: 'El acceso por PIN no está configurado en el servidor.' });
+    }
+
     if (cleanPin !== ADMIN_PIN) {
       return res.status(401).json({ error: 'PIN de seguridad incorrecto.' });
     }
