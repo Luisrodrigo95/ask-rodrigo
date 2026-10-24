@@ -49,56 +49,9 @@ export function loginGuest(req, res) {
  * STRICT CHECK: Only Rodrigo's Gmail (lg2012garcia@gmail.com) is allowed.
  */
 export function loginAdmin(req, res) {
-  try {
-    const { email, pin } = req.body;
-
-    if (!email || !pin) {
-      return res.status(400).json({ error: 'Email y PIN de seguridad son requeridos.' });
-    }
-
-    const cleanEmail = String(email).trim().toLowerCase();
-    const cleanPin = String(pin).trim();
-
-    // Verify PIN is configured and matches
-    if (!ADMIN_PIN) {
-      return res.status(500).json({ error: 'El acceso por PIN no está configurado en el servidor.' });
-    }
-
-    if (cleanPin !== ADMIN_PIN) {
-      return res.status(401).json({ error: 'PIN de seguridad incorrecto.' });
-    }
-
-    // STRICT CHECK: Only Rodrigo's specific Gmail is authorized
-    const isAuthorized = cleanEmail === PRIMARY_ADMIN_EMAIL || ADMIN_EMAILS.includes(cleanEmail);
-
-    if (!isAuthorized) {
-      return res.status(403).json({
-        error: `Acceso restringido: Únicamente la cuenta ${PRIMARY_ADMIN_EMAIL} tiene autorización para acceder como Administrador sin limitaciones.`
-      });
-    }
-
-    const payload = {
-      role: 'admin',
-      name: 'Rodrigo García',
-      email: cleanEmail,
-      scope: 'full:admin',
-      createdAt: new Date().toISOString()
-    };
-
-    const token = signUserToken(payload, '30d');
-
-    return res.json({
-      ok: true,
-      role: 'admin',
-      name: 'Rodrigo García',
-      email: cleanEmail,
-      token,
-      message: 'Bienvenido Rodrigo. Acceso completo y sin limitaciones a Antigravity CLI, métricas y VPS concedido.'
-    });
-  } catch (err) {
-    console.error('[Auth loginAdmin Error]:', err);
-    return res.status(500).json({ error: 'Error procesando autenticación de administrador' });
-  }
+  return res.status(403).json({
+    error: 'El inicio de sesión manual mediante correo y PIN ha sido desactivado. Por favor autentícate mediante el botón directo de Google.'
+  });
 }
 
 /**

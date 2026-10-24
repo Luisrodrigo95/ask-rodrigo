@@ -4,8 +4,6 @@ import {
   User, 
   Lock, 
   Terminal, 
-  Mail, 
-  Key, 
   Sparkles, 
   CheckCircle2, 
   AlertCircle,
@@ -26,9 +24,6 @@ export function LoginModal({
   t
 }) {
   const [activeTab, setActiveTab] = useState('guest'); // 'guest' | 'admin'
-  // NO PRE-FILL: starts completely blank as requested by user
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPin, setAdminPin] = useState('');
   const [googleClientId, setGoogleClientId] = useState('');
   const [customClientId, setCustomClientId] = useState('');
   const [showConfigId, setShowConfigId] = useState(false);
@@ -127,24 +122,6 @@ export function LoginModal({
       onClose();
     } catch (err) {
       setError(err.message || 'Error initializing guest session');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAdminSubmit = async (e) => {
-    e.preventDefault();
-    if (!adminEmail.trim() || !adminPin.trim()) {
-      setError('Please provide both your Gmail address and security PIN.');
-      return;
-    }
-    setError('');
-    setLoading(true);
-    try {
-      await onAdminLogin(adminEmail.trim(), adminPin.trim());
-      onClose();
-    } catch (err) {
-      setError(err.message || 'Incorrect administrator credentials');
     } finally {
       setLoading(false);
     }
@@ -370,59 +347,6 @@ export function LoginModal({
                 </div>
               )}
 
-              {/* DIVIDER */}
-              <div className="relative my-3">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-800"></div>
-                </div>
-                <div className="relative flex justify-center text-[10px] uppercase font-mono">
-                  <span className="bg-slate-900 px-2 text-slate-500">
-                    {lt.orPin}
-                  </span>
-                </div>
-              </div>
-
-              {/* 2. DIRECT EMAIL + PIN FORM (BLANK INPUTS, NO PRE-FILL) */}
-              <form onSubmit={handleAdminSubmit} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1 flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-teal-400" />
-                    <span>{lt.emailLabel}</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                    placeholder={lt.emailPlaceholder}
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700/80 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1 flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5 text-teal-400" />
-                    <span>{lt.pinLabel}</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={adminPin}
-                    onChange={(e) => setAdminPin(e.target.value)}
-                    placeholder={lt.pinPlaceholder}
-                    required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700/80 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium text-xs transition-all active:scale-[0.99] disabled:opacity-50"
-                >
-                  <span>{loading ? lt.verifying : lt.pinSubmit}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </form>
             </div>
           )}
         </div>
