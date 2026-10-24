@@ -1,7 +1,8 @@
 import { signUserToken } from '../middleware/auth.js';
 
+const PRIMARY_ADMIN_EMAIL = 'lg2012garcia@gmail.com';
 const ADMIN_PIN = process.env.ADMIN_PIN;
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || 'contacto@therodrigo.com,rodrigo@therodrigo.com,lrodrigogh@gmail.com')
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || `${PRIMARY_ADMIN_EMAIL},contacto@therodrigo.com`)
   .split(',')
   .map(e => e.trim().toLowerCase());
 
@@ -34,7 +35,7 @@ export function loginGuest(req, res) {
 }
 
 /**
- * Admin Login: Rodrigo's Gmail + Security PIN/Master Key
+ * Admin Login: Strictly restricted to Rodrigo's Gmail (lg2012garcia@gmail.com) + Security PIN
  */
 export function loginAdmin(req, res) {
   try {
@@ -47,18 +48,17 @@ export function loginAdmin(req, res) {
     const cleanEmail = String(email).trim().toLowerCase();
     const cleanPin = String(pin).trim();
 
-    // Verify PIN
+    // Verify PIN first
     if (cleanPin !== ADMIN_PIN) {
       return res.status(401).json({ error: 'PIN de seguridad incorrecto.' });
     }
 
-    // Verify it is a valid Gmail address or configured admin email
-    const isConfiguredAdmin = ADMIN_EMAILS.includes(cleanEmail);
-    const isGmail = cleanEmail.endsWith('@gmail.com');
+    // STRICT CHECK: Only Rodrigo's specific Gmail or authorized admin email is granted access
+    const isAuthorized = cleanEmail === PRIMARY_ADMIN_EMAIL || ADMIN_EMAILS.includes(cleanEmail);
 
-    if (!isConfiguredAdmin && !isGmail) {
+    if (!isAuthorized) {
       return res.status(403).json({
-        error: 'El correo debe ser una cuenta Gmail autorizada de Rodrigo o el correo oficial.'
+        error: `Acceso restringido: Únicamente la cuenta ${PRIMARY_ADMIN_EMAIL} tiene autorización para acceder como Administrador sin limitaciones.`
       });
     }
 
@@ -78,7 +78,7 @@ export function loginAdmin(req, res) {
       name: 'Rodrigo García',
       email: cleanEmail,
       token,
-      message: 'Bienvenido Rodrigo. Acceso completo a Antigravity CLI y métricas de servidor concedido.'
+      message: 'Bienvenido Rodrigo. Acceso completo y sin limitaciones a Antigravity CLI, métricas y VPS concedido.'
     });
   } catch (err) {
     console.error('[Auth loginAdmin Error]:', err);
@@ -111,12 +111,12 @@ export async function loginGoogle(req, res) {
       return res.status(403).json({ error: 'El correo de Google no está verificado.' });
     }
 
-    const isConfiguredAdmin = ADMIN_EMAILS.includes(email);
-    const isGmail = email.endsWith('@gmail.com');
+    // STRICT CHECK: Only Rodrigo's Gmail is granted access
+    const isAuthorized = email === PRIMARY_ADMIN_EMAIL || ADMIN_EMAILS.includes(email);
 
-    if (!isConfiguredAdmin && !isGmail) {
+    if (!isAuthorized) {
       return res.status(403).json({
-        error: `Acceso restringido: La cuenta ${email} no está autorizada como administrador de Rodrigo.`
+        error: `Acceso denegado: La cuenta ${email} no está autorizada. Solo ${PRIMARY_ADMIN_EMAIL} tiene acceso completo como administrador.`
       });
     }
 
@@ -138,7 +138,7 @@ export async function loginGoogle(req, res) {
       email: payload.email,
       picture: data.picture,
       token,
-      message: 'Autenticación con Google exitosa. Acceso de administrador activo.'
+      message: 'Autenticación con Google exitosa. Acceso de administrador sin limitaciones activo.'
     });
   } catch (err) {
     console.error('[Auth loginGoogle Error]:', err);

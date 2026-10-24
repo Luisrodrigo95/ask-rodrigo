@@ -16,7 +16,7 @@ import {
 
 export function LoginModal({ isOpen, onClose, onGuestLogin, onAdminLogin, currentRole }) {
   const [activeTab, setActiveTab] = useState('guest'); // 'guest' | 'admin'
-  const [adminEmail, setAdminEmail] = useState('');
+  const [adminEmail, setAdminEmail] = useState('lg2012garcia@gmail.com');
   const [adminPin, setAdminPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
