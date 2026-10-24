@@ -20,6 +20,11 @@ import {
   getMe,
   getAuthConfig
 } from '../controllers/authController.js';
+import {
+  uploadMiddleware,
+  uploadFileHandler,
+  listUploadsHandler
+} from '../controllers/uploadController.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -53,5 +58,16 @@ router.get('/metrics', requireAdmin, metricsHandler);
 router.get('/calendar', calendarGetHandler);
 router.post('/calendar', requireAdmin, calendarPostHandler);
 router.delete('/calendar/:id', requireAdmin, calendarDeleteHandler);
+
+// --- Admin-Only File Uploads for Terminal / Antigravity Execution ---
+router.post('/upload', requireAdmin, (req, res, next) => {
+  uploadMiddleware.single('file')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || 'Error al procesar archivo adjunto.' });
+    }
+    next();
+  });
+}, uploadFileHandler);
+router.get('/upload/list', requireAdmin, listUploadsHandler);
 
 export default router;

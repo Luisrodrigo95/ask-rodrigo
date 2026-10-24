@@ -12,9 +12,22 @@ import {
   RefreshCw,
   AlertCircle,
   Shield,
-  HelpCircle
+  HelpCircle,
+  Paperclip,
+  FileText,
+  X,
+  UploadCloud
 } from 'lucide-react';
 import { marked } from 'marked';
+import { uploadAdminFile } from '../services/api.js';
+
+function formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
 
 // Configure marked to render code blocks and links cleanly
 marked.setOptions({
@@ -47,8 +60,12 @@ export function ChatView({
 }) {
   const [inputText, setInputText] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [attachedFiles, setAttachedFiles] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const isAdmin = currentUser?.role === 'admin';
   const ct = t.chat;
@@ -65,12 +82,57 @@ export function ChatView({
     inputRef.current?.focus();
   }, [conversationId]);
 
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError('');
+    try {
+      const res = await uploadAdminFile(file);
+      setAttachedFiles((prev) => [
+        ...prev,
+        {
+          filename: res.filename,
+          originalName: res.originalName,
+          size: res.size,
+          path: res.path
+        }
+      ]);
+    } catch (err) {
+      console.error('[Upload Error]:', err);
+      setUploadError(err.message || ct.fileUploadError);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (index) => {
+    setAttachedFiles((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!inputText.trim() || isGenerating) return;
-    const msg = inputText.trim();
+    if ((!inputText.trim() && attachedFiles.length === 0) || isGenerating || isUploading) return;
+
+    let finalMessage = inputText.trim();
+    if (attachedFiles.length > 0) {
+      const fileReferences = attachedFiles.map((f) => 
+        `📎 [Archivo adjunto en el servidor]: ${f.path}\n- Nombre original: ${f.originalName} (${formatFileSize(f.size)})`
+      ).join('\n\n');
+
+      if (finalMessage) {
+        finalMessage = `${fileReferences}\n\n${finalMessage}`;
+      } else {
+        finalMessage = `${fileReferences}\n\nPor favor lee el archivo adjunto usando tus herramientas de lectura de archivos e indícame tu análisis o realiza la acción necesaria.`;
+      }
+    }
+
     setInputText('');
-    onSendMessage(msg);
+    setAttachedFiles([]);
+    setUploadError('');
+    onSendMessage(finalMessage);
   };
 
   const handleKeyDown = (e) => {
@@ -269,34 +331,100 @@ export function ChatView({
       {/* Input Box Footer */}
       <div className="p-3 border-t border-slate-800 bg-slate-900/60 backdrop-blur-md">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative">
-          <textarea
-            ref={inputRef}
-            rows="2"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isGenerating}
-            placeholder={
-              isGenerating
-                ? ct.generating
-                : isAdmin
-                  ? ct.placeholderAdmin
-                  : ct.placeholderGuest
-            }
-            className="w-full bg-slate-900 border border-slate-700/80 rounded-2xl pl-4 pr-12 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 resize-none transition-all"
-          />
+          {/* Attached Files & Upload Status Badges */}
+          {(attachedFiles.length > 0 || isUploading || uploadError) && (
+            <div className="flex flex-wrap items-center gap-2 mb-2 px-1">
+              {attachedFiles.map((f, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-teal-500/40 text-xs text-slate-200 shadow-sm animate-fadeIn"
+                >
+                  <FileText className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                  <span className="font-mono text-[11px] max-w-[200px] sm:max-w-[300px] truncate text-slate-100 font-medium">
+                    {f.originalName}
+                  </span>
+                  <span className="text-[10px] text-teal-300/80 font-mono">
+                    {formatFileSize(f.size)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(idx)}
+                    className="text-slate-400 hover:text-rose-400 transition-colors p-0.5 rounded cursor-pointer"
+                    title={ct.removeAttachment}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+              {isUploading && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/60 border border-slate-700 text-xs text-teal-400 animate-pulse font-mono">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span className="text-[11px]">{ct.uploadingFile}</span>
+                </div>
+              )}
+              {uploadError && (
+                <div className="flex items-center gap-1 text-[11px] text-rose-400 font-mono bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-xl">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+            </div>
+          )}
 
-          <button
-            type="submit"
-            disabled={!inputText.trim() || isGenerating}
-            className={`absolute right-2.5 bottom-4 p-2 rounded-xl transition-all ${
-              inputText.trim() && !isGenerating
-                ? 'bg-teal-600 hover:bg-teal-500 text-white shadow-md shadow-teal-500/20 active:scale-95'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-            }`}
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          <div className="relative flex items-center">
+            {/* Admin File Upload Button */}
+            {isAdmin && (
+              <>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  accept=".txt,.log,.md,.markdown,.js,.mjs,.cjs,.ts,.jsx,.tsx,.py,.json,.sh,.bash,.zsh,.yml,.yaml,.css,.scss,.html,.sql,.env,.csv,.tsv,.xml,.conf,.ini,.cfg,.patch,.diff,.java,.c,.cpp,.h,.hpp,.rs,.go,.php,.rb,.toml"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isGenerating || isUploading}
+                  title={ct.attachFile}
+                  className="absolute left-2.5 bottom-3 p-1.5 rounded-xl text-slate-400 hover:text-teal-300 hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-40 cursor-pointer z-10"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+              </>
+            )}
+
+            <textarea
+              ref={inputRef}
+              rows="2"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isGenerating}
+              placeholder={
+                isGenerating
+                  ? ct.generating
+                  : isAdmin
+                    ? ct.placeholderAdmin
+                    : ct.placeholderGuest
+              }
+              className={`w-full bg-slate-900 border border-slate-700/80 rounded-2xl ${
+                isAdmin ? 'pl-11' : 'pl-4'
+              } pr-12 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 resize-none transition-all`}
+            />
+
+            <button
+              type="submit"
+              disabled={(!inputText.trim() && attachedFiles.length === 0) || isGenerating || isUploading}
+              className={`absolute right-2.5 bottom-3 p-2 rounded-xl transition-all ${
+                (inputText.trim() || attachedFiles.length > 0) && !isGenerating && !isUploading
+                  ? 'bg-teal-600 hover:bg-teal-500 text-white shadow-md shadow-teal-500/20 active:scale-95 cursor-pointer'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              }`}
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
         </form>
       </div>
     </div>

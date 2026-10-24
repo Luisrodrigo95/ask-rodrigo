@@ -34,7 +34,8 @@ export async function executeAgyPrompt(message, options = {}) {
   } = options;
 
   return new Promise((resolve, reject) => {
-    const args = ['-p', message, '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+    // Pipe prompt through stdin via '-p' '-' to avoid Linux ARG_MAX / MAX_ARG_STRLEN limits (spawn E2BIG)
+    const args = ['-p', '-', '--output-format', 'stream-json', '--dangerously-skip-permissions'];
     if (conversationId && typeof conversationId === 'string' && conversationId.trim() !== '') {
       args.push('--conversation', conversationId.trim());
     }
@@ -55,6 +56,16 @@ export async function executeAgyPrompt(message, options = {}) {
       env,
       stdio: ['pipe', 'pipe', 'pipe']
     });
+
+    child.stdin.on('error', (err) => {
+      if (err.code !== 'EPIPE') {
+        console.warn('[AGy Bridge stdin error]:', err.message);
+      }
+    });
+
+    // Write prompt message directly to child stdin and close
+    child.stdin.write(message);
+    child.stdin.end();
 
     const timer = setTimeout(() => {
       timedOut = true;

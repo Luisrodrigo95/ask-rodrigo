@@ -325,3 +325,38 @@ export async function fetchHealth() {
   if (!response.ok) throw new Error('Failed to fetch health');
   return await response.json();
 }
+
+/**
+ * File Uploads for Terminal & Antigravity (Admin Only)
+ */
+export async function uploadAdminFile(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = getAuthToken();
+  const headers = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}/upload`, {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al subir archivo al servidor');
+  }
+
+  return await response.json();
+}
+
+export async function fetchUploadsList() {
+  const response = await fetch(`${API_BASE}/upload/list`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) throw new Error('Error al listar archivos subidos');
+  return await response.json();
+}

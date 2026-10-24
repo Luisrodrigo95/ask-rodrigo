@@ -63,7 +63,12 @@ export const translations = {
       copyText: "Copy text",
       copied: "Copied!",
       listen: "Listen to response",
-      errorPrefix: "Error processing reply"
+      errorPrefix: "Error processing reply",
+      attachFile: "Upload text or code file for Antigravity (Admin only)",
+      uploadingFile: "Uploading file to VPS...",
+      fileAttached: "File ready on server",
+      removeAttachment: "Remove file",
+      fileUploadError: "Failed to upload file"
     },
     metrics: {
       title: "Live Server Metrics & Health",
@@ -229,7 +234,12 @@ export const translations = {
       copyText: "Copiar texto",
       copied: "¡Copiado!",
       listen: "Escuchar respuesta",
-      errorPrefix: "Error procesando respuesta"
+      errorPrefix: "Error procesando respuesta",
+      attachFile: "Subir archivo de texto o código para Antigravity (Solo Rodrigo)",
+      uploadingFile: "Subiendo archivo a la VPS...",
+      fileAttached: "Archivo listo en el servidor",
+      removeAttachment: "Quitar archivo",
+      fileUploadError: "Error al subir archivo"
     },
     metrics: {
       title: "Métricas del Servidor & Salud en Vivo",
