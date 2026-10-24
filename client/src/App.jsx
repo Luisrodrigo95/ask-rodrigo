@@ -26,6 +26,7 @@ import {
   loginAsAdmin,
   loginWithGoogle,
   fetchMe,
+  fetchAuthConfig,
   logout
 } from './services/api';
 
@@ -100,6 +101,18 @@ export function App() {
     loadProfile();
     loadSuggestions();
     loadCalendar();
+    loadAuthConfig();
+  };
+
+  const loadAuthConfig = async () => {
+    try {
+      const cfg = await fetchAuthConfig();
+      if (cfg?.googleClientId) {
+        setGoogleClientId(cfg.googleClientId);
+      }
+    } catch (err) {
+      console.warn('Failed to load auth config:', err);
+    }
   };
 
   // Re-load role-dependent data when currentUser changes
