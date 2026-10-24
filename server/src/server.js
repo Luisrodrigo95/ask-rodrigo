@@ -122,7 +122,11 @@ app.use((err, req, res, next) => {
 });
 
 // Start Server
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Ask-Rodrigo] Server running on http://127.0.0.1:${PORT}`);
   console.log(`[Ask-Rodrigo] Node Environment: ${process.env.NODE_ENV || 'production'}`);
 });
+
+// Configure 15-minute timeout for extended AGy-cli tasks
+server.setTimeout(900000);
+server.keepAliveTimeout = 65000;

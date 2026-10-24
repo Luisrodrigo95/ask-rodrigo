@@ -82,6 +82,13 @@ export async function chatStreamHandler(req, res) {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
+  // Heartbeat to prevent reverse proxy/Cloudflare idle disconnects during long turns
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(': keepalive\n\n');
+    }
+  }, 15000);
+
   try {
     sendEvent('status', { message: 'Iniciando turno en AGy-cli...' });
 
@@ -111,6 +118,8 @@ export async function chatStreamHandler(req, res) {
     console.error('[ChatController SSE Error]:', errStream);
     sendEvent('error', { error: errStream.message });
     res.end();
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 

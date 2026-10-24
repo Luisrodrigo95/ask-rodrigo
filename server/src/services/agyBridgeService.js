@@ -29,7 +29,7 @@ export async function executeAgyPrompt(message, options = {}) {
     conversationId,
     onDelta,
     onInit,
-    timeoutMs = 180000,
+    timeoutMs = 900000, // 15 minutes per turn
     cwd = AGY_HOME
   } = options;
 
