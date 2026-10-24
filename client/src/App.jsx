@@ -5,6 +5,7 @@ import { ChatView } from './components/ChatView';
 import { MetricsView } from './components/MetricsView';
 import { CalendarView } from './components/CalendarView';
 import { ProfileModal } from './components/ProfileModal';
+import { LoginModal } from './components/LoginModal';
 import { 
   fetchConversations, 
   fetchConversationDetail, 
@@ -16,11 +17,20 @@ import {
   removeCalendarEvent, 
   fetchProfile, 
   fetchSuggestions, 
-  fetchHealth 
+  fetchHealth,
+  getStoredUser,
+  getAuthToken,
+  loginAsGuest,
+  loginAsAdmin,
+  fetchMe,
+  logout
 } from './services/api';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'metrics' | 'calendar'
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser() || { role: 'guest', name: 'Invitado' });
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -46,15 +56,57 @@ export function App() {
   // Voice Speech
   const [speechEnabled, setSpeechEnabled] = useState(false);
 
-  // 1. Initial Data Load
+  // 1. Initial Session Validation & Data Load
   useEffect(() => {
+    initAuthAndData();
+  }, []);
+
+  const initAuthAndData = async () => {
+    const token = getAuthToken();
+    if (!token) {
+      try {
+        // Auto-initialize guest session seamlessly
+        const g = await loginAsGuest();
+        setCurrentUser({ role: 'guest', name: 'Invitado', email: null });
+      } catch (err) {
+        console.warn('Guest login initialization error:', err);
+      }
+    } else {
+      try {
+        const me = await fetchMe();
+        if (me.authenticated && me.user) {
+          setCurrentUser(me.user);
+        } else {
+          // Token expired or invalid, renew as guest
+          await loginAsGuest();
+          setCurrentUser({ role: 'guest', name: 'Invitado', email: null });
+        }
+      } catch {
+        // Fallback to guest
+        await loginAsGuest();
+        setCurrentUser({ role: 'guest', name: 'Invitado', email: null });
+      }
+    }
+
     loadHealth();
-    loadConversations();
     loadProfile();
     loadSuggestions();
-    loadMetrics();
     loadCalendar();
-  }, []);
+  };
+
+  // Re-load role-dependent data when currentUser changes
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      loadConversations();
+      loadMetrics();
+    } else {
+      setConversations([]);
+      setMetrics(null);
+      if (activeTab === 'metrics') {
+        setActiveTab('chat');
+      }
+    }
+  }, [currentUser?.role]);
 
   const loadHealth = async () => {
     try {
@@ -66,6 +118,7 @@ export function App() {
   };
 
   const loadConversations = async () => {
+    if (currentUser?.role !== 'admin') return;
     setConversationsLoading(true);
     try {
       const data = await fetchConversations();
@@ -96,6 +149,7 @@ export function App() {
   };
 
   const loadMetrics = async () => {
+    if (currentUser?.role !== 'admin') return;
     setMetricsLoading(true);
     try {
       const m = await fetchMetrics();
@@ -119,7 +173,28 @@ export function App() {
     }
   };
 
-  // 2. Select / Load Conversation
+  // 2. Authentication Handlers
+  const handleGuestLogin = async () => {
+    await loginAsGuest();
+    setCurrentUser({ role: 'guest', name: 'Invitado', email: null });
+    setActiveConversationId(null);
+    setMessages([]);
+    loadSuggestions();
+  };
+
+  const handleAdminLogin = async (email, pin) => {
+    const data = await loginAsAdmin(email, pin);
+    setCurrentUser({ role: 'admin', name: data.name, email: data.email });
+    loadConversations();
+    loadMetrics();
+  };
+
+  const handleLogout = async () => {
+    logout();
+    await handleGuestLogin();
+  };
+
+  // 3. Select / Load Conversation
   const handleSelectConversation = async (id) => {
     if (isGenerating) return;
     setActiveConversationId(id);
@@ -154,7 +229,7 @@ export function App() {
     }
   };
 
-  // 3. Send Message to AGy via SSE Stream
+  // 4. Send Message via Stream
   const handleSendMessage = (text) => {
     if (!text || isGenerating) return;
 
@@ -167,14 +242,18 @@ export function App() {
     setMessages((prev) => [...prev, userMsg]);
     setIsGenerating(true);
     setStreamingReply('');
-    setStreamingStatus('Iniciando proceso en Antigravity CLI...');
+    setStreamingStatus(
+      currentUser?.role === 'admin'
+        ? 'Iniciando proceso en Antigravity CLI...'
+        : 'Consultando base de conocimientos de Rodrigo...'
+    );
 
     let accumulatedText = '';
     let currentConvId = activeConversationId;
 
     streamChatMessage(text, currentConvId, {
       onInit: (data) => {
-        if (data.conversationId) {
+        if (data.conversationId && currentUser?.role === 'admin') {
           currentConvId = data.conversationId;
           setActiveConversationId(data.conversationId);
         }
@@ -189,7 +268,7 @@ export function App() {
       onDone: (meta) => {
         setIsGenerating(false);
         setStreamingStatus('');
-        const finalReply = accumulatedText || 'Turno finalizado.';
+        const finalReply = accumulatedText || 'Consulta finalizada.';
         setMessages((prev) => [
           ...prev,
           {
@@ -199,7 +278,9 @@ export function App() {
           }
         ]);
         setStreamingReply('');
-        loadConversations();
+        if (currentUser?.role === 'admin') {
+          loadConversations();
+        }
 
         // Speech synthesis if enabled
         if (speechEnabled) {
@@ -213,7 +294,7 @@ export function App() {
           ...prev,
           {
             role: 'assistant',
-            content: `⚠️ **Error en AGy-cli**: ${errMsg}`,
+            content: `⚠️ **Error procesando respuesta**: ${errMsg}`,
             time: new Date().toISOString()
           }
         ]);
@@ -222,7 +303,7 @@ export function App() {
     });
   };
 
-  // 4. Speech Synthesis
+  // 5. Speech Synthesis
   const speakText = (text) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -233,8 +314,12 @@ export function App() {
     window.speechSynthesis.speak(utterance);
   };
 
-  // 5. Calendar Handlers
+  // 6. Calendar Handlers
   const handleCreateEvent = async (eventData) => {
+    if (currentUser?.role !== 'admin') {
+      setIsLoginOpen(true);
+      return;
+    }
     try {
       await createCalendarEvent(eventData);
       loadCalendar();
@@ -244,6 +329,10 @@ export function App() {
   };
 
   const handleDeleteEvent = async (id) => {
+    if (currentUser?.role !== 'admin') {
+      setIsLoginOpen(true);
+      return;
+    }
     try {
       await removeCalendarEvent(id);
       loadCalendar();
@@ -263,6 +352,9 @@ export function App() {
         onToggleSpeech={() => setSpeechEnabled(!speechEnabled)}
         health={health}
         metricsLoading={metricsLoading}
+        currentUser={currentUser}
+        onOpenLogin={() => setIsLoginOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Workspace */}
@@ -276,6 +368,8 @@ export function App() {
               onNewChat={handleNewChat}
               onDeleteConversation={handleDeleteConversation}
               loading={conversationsLoading}
+              currentUser={currentUser}
+              onOpenLogin={() => setIsLoginOpen(true)}
             />
             <ChatView
               conversationId={activeConversationId}
@@ -288,6 +382,7 @@ export function App() {
               onSelectSuggestion={handleSendMessage}
               speechEnabled={speechEnabled}
               onSpeakText={speakText}
+              currentUser={currentUser}
             />
           </>
         ) : activeTab === 'metrics' ? (
@@ -302,6 +397,7 @@ export function App() {
             onCreateEvent={handleCreateEvent}
             onDeleteEvent={handleDeleteEvent}
             loading={calendarLoading}
+            currentUser={currentUser}
           />
         )}
       </div>
@@ -311,6 +407,15 @@ export function App() {
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         profileData={profileData}
+      />
+
+      {/* Login & Switch Role Modal */}
+      <LoginModal
+        isOpen={isLoginOpen}
+        onClose={() => setIsLoginOpen(false)}
+        onGuestLogin={handleGuestLogin}
+        onAdminLogin={handleAdminLogin}
+        currentRole={currentUser?.role}
       />
     </div>
   );

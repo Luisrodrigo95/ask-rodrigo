@@ -10,7 +10,9 @@ import {
   Clock, 
   Volume2,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Shield,
+  HelpCircle
 } from 'lucide-react';
 import { marked } from 'marked';
 
@@ -39,12 +41,15 @@ export function ChatView({
   suggestions,
   onSelectSuggestion,
   speechEnabled,
-  onSpeakText
+  onSpeakText,
+  currentUser
 }) {
   const [inputText, setInputText] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  const isAdmin = currentUser?.role === 'admin';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,46 +84,50 @@ export function ChatView({
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const normalizedSuggestions = React.useMemo(() => {
-    const fallback = [
-      '¿Cuál es el estado de la infraestructura en el VPS?',
-      'Verifica el estado de los servicios systemd y procesos PM2',
-      'Explícame la arquitectura de TotiMigraciones y PresWin',
-      '¿Qué experiencia y habilidades técnicas tiene Rodrigo?'
-    ];
-    if (!suggestions || !Array.isArray(suggestions) || suggestions.length === 0) {
-      return fallback;
-    }
-    const list = [];
-    for (const item of suggestions) {
-      if (typeof item === 'string') {
-        list.push(item);
-      } else if (item && Array.isArray(item.questions)) {
-        for (const q of item.questions) {
-          if (typeof q === 'string') list.push(q);
-        }
-      } else if (item && typeof item.question === 'string') {
-        list.push(item.question);
-      }
-    }
-    return list.length > 0 ? list.slice(0, 6) : fallback;
-  }, [suggestions]);
+  // Explicit priority guest questions requested by user
+  const guestQuestions = [
+    "¿Cuál es la experiencia de Rodrigo en ZAP-Hosting?",
+    "¿Qué hizo Rodrigo durante sus 5 años en Continental Automotive?",
+    "¿Qué estudios y certificaciones tiene Rodrigo?",
+    "¿Qué stack tecnológico y lenguajes domina Rodrigo?",
+    "¿Cómo está configurada su infraestructura de servidores VPS?",
+    "¿Tiene experiencia con Linux, Nginx y Docker?"
+  ];
+
+  const adminSuggestions = [
+    "¿Cuál es el estado de la infraestructura en el VPS Debian 13?",
+    "Verifica el estado de los servicios systemd y procesos PM2",
+    "Explícame la arquitectura de TotiMigraciones, PresWin y Appointment Checker",
+    "Revisa los logs recientes de Nginx para detectar anomalías"
+  ];
+
+  const activeChips = isAdmin ? adminSuggestions : guestQuestions;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-950/40 relative">
       {/* Session Top Bar */}
       <div className="px-4 py-2 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between text-xs font-mono text-slate-400">
         <div className="flex items-center gap-2">
-          <Terminal className="w-3.5 h-3.5 text-teal-400" />
+          {isAdmin ? (
+            <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+          ) : (
+            <HelpCircle className="w-3.5 h-3.5 text-teal-400" />
+          )}
           <span>Sesión:</span>
           <span className="text-slate-300 font-semibold truncate max-w-[200px] sm:max-w-xs">
-            {conversationId || 'Nueva Sesión (Autocreada)'}
+            {isAdmin 
+              ? (conversationId || 'Nueva Sesión AGy-cli') 
+              : 'Modo Consulta Pública (Invitado)'}
           </span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
-          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-300 border border-teal-500/20">
+          <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full border ${
+            isAdmin 
+              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
+              : 'bg-teal-500/10 text-teal-300 border-teal-500/20'
+          }`}>
             <Cpu className="w-3 h-3" />
-            <span>AGy-cli Engine</span>
+            <span>{isAdmin ? 'AGy-cli Native Engine' : 'Knowledge Engine (Solo Lectura)'}</span>
           </span>
         </div>
       </div>
@@ -126,32 +135,43 @@ export function ChatView({
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && !streamingReply ? (
-          <div className="max-w-xl mx-auto py-12 text-center space-y-4">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-teal-500/20 to-cyan-500/20 border border-teal-500/30 flex items-center justify-center text-teal-400 shadow-xl shadow-teal-500/5">
-              <Sparkles className="w-7 h-7" />
+          <div className="max-w-2xl mx-auto py-10 text-center space-y-4">
+            <div className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center shadow-xl ${
+              isAdmin 
+                ? 'bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 text-emerald-400 shadow-emerald-500/5' 
+                : 'bg-gradient-to-tr from-teal-500/20 to-cyan-500/20 border border-teal-500/30 text-teal-400 shadow-teal-500/5'
+            }`}>
+              {isAdmin ? <Terminal className="w-7 h-7" /> : <Sparkles className="w-7 h-7" />}
             </div>
+
             <div>
               <h2 className="text-lg font-bold text-white tracking-tight">
-                Asistente de Infraestructura & Agente AGy
+                {isAdmin ? 'Consola de Agente AGy-cli (Modo Administrador)' : 'Conoce a Luis Rodrigo García Hernández'}
               </h2>
-              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                Conectado directamente a la terminal de Antigravity CLI en tu VPS Debian 13.
-                Pregúntame sobre tus servidores, proyectos o tareas del día a día.
+              <p className="text-xs text-slate-400 mt-1 max-w-lg mx-auto leading-relaxed">
+                {isAdmin 
+                  ? 'Conectado con permisos completos a Antigravity CLI en tu VPS Debian 13. Puedes ejecutar tareas, inspeccionar proyectos y coordinar agentes.' 
+                  : 'Asistente oficial para explorar la trayectoria técnica, experiencia laboral, proyectos en producción y certificaciones de Rodrigo.'}
               </p>
             </div>
 
             {/* Suggestions Grid */}
-            <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
-              {normalizedSuggestions.map((text, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => onSelectSuggestion ? onSelectSuggestion(text) : onSendMessage(text)}
-                  className="p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-teal-500/40 text-xs text-slate-300 hover:text-white transition-all text-left group flex items-start justify-between gap-2 shadow-sm"
-                >
-                  <span>{typeof text === 'string' ? text : String(text)}</span>
-                  <Sparkles className="w-3.5 h-3.5 text-slate-600 group-hover:text-teal-400 shrink-0 mt-0.5" />
-                </button>
-              ))}
+            <div className="pt-2">
+              <p className="text-[11px] font-mono text-slate-500 mb-2.5 uppercase tracking-wider">
+                {isAdmin ? 'Comandos y consultas rápidas' : 'Preguntas recomendadas para conocer a Rodrigo'}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                {activeChips.map((text, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => onSelectSuggestion ? onSelectSuggestion(text) : onSendMessage(text)}
+                    className="p-3 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-teal-500/40 text-xs text-slate-300 hover:text-white transition-all text-left group flex items-start justify-between gap-2 shadow-sm"
+                  >
+                    <span>{text}</span>
+                    <Sparkles className="w-3.5 h-3.5 text-slate-600 group-hover:text-teal-400 shrink-0 mt-0.5" />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
@@ -163,8 +183,12 @@ export function ChatView({
                 className={`flex gap-3 max-w-4xl mx-auto ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 {!isUser && (
-                  <div className="w-8 h-8 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 shrink-0 mt-0.5 shadow-sm">
-                    <Terminal className="w-4 h-4" />
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-sm border ${
+                    isAdmin 
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                      : 'bg-teal-500/10 border-teal-500/30 text-teal-400'
+                  }`}>
+                    {isAdmin ? <Terminal className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
                   </div>
                 )}
 
@@ -230,8 +254,12 @@ export function ChatView({
         {/* Live Streaming Delta */}
         {streamingReply && (
           <div className="flex gap-3 max-w-4xl mx-auto justify-start">
-            <div className="w-8 h-8 rounded-xl bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-300 shrink-0 mt-0.5 animate-pulse">
-              <Terminal className="w-4 h-4" />
+            <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 mt-0.5 animate-pulse ${
+              isAdmin 
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
+                : 'bg-teal-500/20 border-teal-500/40 text-teal-300'
+            }`}>
+              {isAdmin ? <Terminal className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
             </div>
             <div className="rounded-2xl px-4 py-3 max-w-[85%] text-sm bg-slate-900 border border-teal-500/40 text-slate-200 rounded-tl-none shadow-md shadow-teal-500/5">
               <div
@@ -243,11 +271,11 @@ export function ChatView({
           </div>
         )}
 
-        {/* Status indicator while AGy is thinking */}
+        {/* Status indicator */}
         {isGenerating && !streamingReply && (
           <div className="flex items-center gap-2 max-w-4xl mx-auto text-xs text-teal-400 font-mono py-2 px-1">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-400" />
-            <span>{streamingStatus || 'AGy-cli procesando turno y consultando herramientas...'}</span>
+            <span>{streamingStatus || 'Procesando respuesta...'}</span>
           </div>
         )}
 
@@ -266,8 +294,10 @@ export function ChatView({
             disabled={isGenerating}
             placeholder={
               isGenerating
-                ? 'AGy-cli está ejecutando...'
-                : 'Escribe tu consulta o comando para AGy (ej. "¿Cómo está el estado de los servicios?"). Presiona Enter para enviar.'
+                ? 'Generando respuesta...'
+                : isAdmin
+                  ? 'Escribe tu comando o instrucción para AGy-cli. Presiona Enter para enviar.'
+                  : 'Pregunta sobre la experiencia en ZAP-Hosting, Continental, stack o proyectos de Rodrigo...'
             }
             className="w-full bg-slate-900 border border-slate-700/80 rounded-2xl pl-4 pr-12 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 resize-none transition-all"
           />

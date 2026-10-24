@@ -7,14 +7,16 @@ import {
   Tag, 
   AlertCircle, 
   CheckCircle2,
-  CalendarCheck
+  CalendarCheck,
+  Lock
 } from 'lucide-react';
 
 export function CalendarView({
   events = [],
   onCreateEvent,
   onDeleteEvent,
-  loading
+  loading,
+  currentUser
 }) {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
@@ -24,9 +26,11 @@ export function CalendarView({
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
 
+  const isAdmin = currentUser?.role === 'admin';
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !isAdmin) return;
     onCreateEvent({
       title: title.trim(),
       category,
@@ -60,24 +64,31 @@ export function CalendarView({
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <CalendarCheck className="w-5 h-5 text-teal-400" />
-            <span>Calendario & Agenda de Tareas</span>
+            <span>Calendario & Agenda de Rodrigo</span>
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Organiza tus citas consulares, mantenimientos del VPS y tareas personales.
+            Citas consulares, mantenimientos programados del VPS y fechas clave.
           </p>
         </div>
 
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-medium shadow-md shadow-teal-600/20 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{showForm ? 'Cerrar Formulario' : 'Nuevo Evento'}</span>
-        </button>
+        {isAdmin ? (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-medium shadow-md shadow-teal-600/20 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{showForm ? 'Cerrar Formulario' : 'Nuevo Evento'}</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-400 text-xs">
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <span>Modo Lectura (Invitado)</span>
+          </div>
+        )}
       </div>
 
-      {/* New Event Form (collapsible) */}
-      {showForm && (
+      {/* New Event Form (collapsible - Admin only) */}
+      {isAdmin && showForm && (
         <form onSubmit={handleSubmit} className="p-4 rounded-2xl bg-slate-900 border border-teal-500/40 space-y-4 shadow-lg animate-fadeIn">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-teal-300 font-mono">
             Registrar Cita / Tarea
@@ -167,7 +178,9 @@ export function CalendarView({
           <div className="py-12 text-center text-slate-500 text-xs">
             <CalendarIcon className="w-10 h-10 text-slate-700 mx-auto mb-2" />
             <p className="font-medium text-slate-400">No hay eventos agendados</p>
-            <p className="text-[11px] mt-1 text-slate-500">Crea uno nuevo usando el botón de arriba.</p>
+            <p className="text-[11px] mt-1 text-slate-500">
+              {isAdmin ? 'Crea uno nuevo usando el botón de arriba.' : 'La agenda de Rodrigo está actualmente vacía.'}
+            </p>
           </div>
         ) : (
           events
@@ -203,17 +216,19 @@ export function CalendarView({
                   )}
                 </div>
 
-                <button
-                  onClick={() => {
-                    if (window.confirm(`¿Eliminar evento "${event.title}"?`)) {
-                      onDeleteEvent(event.id);
-                    }
-                  }}
-                  title="Eliminar evento"
-                  className="opacity-60 group-hover:opacity-100 p-2 rounded-xl text-slate-500 hover:bg-rose-500/20 hover:text-rose-400 transition-all"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`¿Eliminar evento "${event.title}"?`)) {
+                        onDeleteEvent(event.id);
+                      }
+                    }}
+                    title="Eliminar evento"
+                    className="opacity-60 group-hover:opacity-100 p-2 rounded-xl text-slate-500 hover:bg-rose-500/20 hover:text-rose-400 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             ))
         )}

@@ -13,29 +13,43 @@ import {
   profileHandler,
   healthHandler
 } from '../controllers/chatController.js';
+import {
+  loginGuest,
+  loginAdmin,
+  loginGoogle,
+  getMe
+} from '../controllers/authController.js';
+import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Health check & System summary
-router.get('/health', healthHandler);
-router.get('/metrics', metricsHandler);
+// Apply authenticateToken middleware to parse Bearer token across all routes
+router.use(authenticateToken);
 
-// Profile & Knowledge summary
+// --- Auth Endpoints ---
+router.post('/auth/guest', loginGuest);
+router.post('/auth/admin-login', loginAdmin);
+router.post('/auth/google', loginGoogle);
+router.get('/auth/me', getMe);
+
+// --- Public Endpoints ---
+router.get('/health', healthHandler);
 router.get('/profile', profileHandler);
 router.get('/suggestions', suggestionsHandler);
 
-// Interactive Chat (JSON & Realtime SSE)
+// --- Interactive Chat (Guests: Safe Knowledge AI / Admin: Native AGy-cli) ---
 router.post('/chat', chatHandler);
 router.all('/chat/stream', chatStreamHandler);
 
-// Conversation management (AGy-cli persistent sessions)
-router.get('/conversations', conversationsHandler);
-router.get('/conversations/:id', conversationDetailHandler);
-router.delete('/conversations/:id', deleteConversationHandler);
+// --- Admin-Only Endpoints (Antigravity sessions & VPS metrics) ---
+router.get('/conversations', requireAdmin, conversationsHandler);
+router.get('/conversations/:id', requireAdmin, conversationDetailHandler);
+router.delete('/conversations/:id', requireAdmin, deleteConversationHandler);
+router.get('/metrics', requireAdmin, metricsHandler);
 
-// Calendar & Agenda
+// --- Calendar Endpoints (Read: All, Write: Admin Only) ---
 router.get('/calendar', calendarGetHandler);
-router.post('/calendar', calendarPostHandler);
-router.delete('/calendar/:id', calendarDeleteHandler);
+router.post('/calendar', requireAdmin, calendarPostHandler);
+router.delete('/calendar/:id', requireAdmin, calendarDeleteHandler);
 
 export default router;

@@ -6,6 +6,11 @@ const SYSTEM_PROMPT = `
 You are "Ask-Rodrigo", the official AI representative and technical assistant for Luis Rodrigo García Hernández.
 Your goal is to answer questions from recruiters, engineering managers, clients, and developers about Rodrigo's professional experience, technical skills, production projects, infrastructure, and contact information.
 
+Role Restrictions:
+- In Guest mode, your scope is STRICTLY READ-ONLY queries about Rodrigo, his experience, studies, tech stack, VPS infrastructure, and production projects.
+- You do NOT have bash or shell execution tools.
+- Refuse any request to alter the VPS, edit files, or execute commands: inform the user that terminal execution requires Admin (Rodrigo) access.
+
 Key Persona & Guidelines:
 1. Persona: Professional, technically sharp, articulate, transparent, and approachable. Speak proudly but humbly about Rodrigo's achievements.
 2. Language: Automatically detect and respond in the same language as the user (Spanish or English).
@@ -20,80 +25,205 @@ ${JSON.stringify(rodrigoKnowledge, null, 2)}
 /**
  * Intelligent local fallback responder when no external LLM API key is configured.
  */
-function localKnowledgeResponder(userMessage) {
+function localKnowledgeResponder(userMessage, isGuest = false) {
   const q = userMessage.toLowerCase().trim();
   const isEn = /\b(what|who|where|how|tell|give|projects|experience|skills|contact|resume|cv)\b/i.test(q);
 
-  // 1. Who is Rodrigo / Profile / Bio
+  // Security guard for guest mode against prompt injections or shell commands
   if (
-    q.includes('quien es') || q.includes('quién es') || q.includes('sobre rodrigo') ||
-    q.includes('who is') || q.includes('about rodrigo') || q.includes('profile') || q.includes('presentacion')
+    q.startsWith('sudo') || q.startsWith('rm ') || q.startsWith('cat ') ||
+    q.startsWith('ls ') || q.startsWith('curl ') || q.startsWith('bash') ||
+    q.includes('/etc/') || q.includes('systemctl') || q.includes('pm2') ||
+    q.includes('eval') || q.includes('exec') || q.includes('token')
   ) {
     if (isEn) {
-      return `**${rodrigoKnowledge.profile.name}** is a **${rodrigoKnowledge.profile.role}** and graduated with a **${rodrigoKnowledge.profile.education.degree}** from **${rodrigoKnowledge.profile.education.institution}**.\n\n` +
-        `> ${rodrigoKnowledge.profile.bio}\n\n` +
-        `* **Location:** ${rodrigoKnowledge.profile.location}\n` +
-        `* **Languages:** ${rodrigoKnowledge.profile.languages.join(' · ')}\n` +
-        `* **Primary Focus:** High-availability server virtualization, open-source compliance auditing, and production automation.`;
+      return `🔒 **Restricted Access (Guest Mode)**\n\n` +
+        `As a guest, you have read-only access to learn about Rodrigo's career, technical capabilities, and projects.\n` +
+        `Direct command execution and system management require logging in as **Rodrigo (Admin)** with his authorized Gmail.`;
     }
-    return `**${rodrigoKnowledge.profile.name}** es un **${rodrigoKnowledge.profile.role}**, graduado de **${rodrigoKnowledge.profile.education.degree}** por el **${rodrigoKnowledge.profile.education.institution}**.\n\n` +
-      `> ${rodrigoKnowledge.profile.bio}\n\n` +
-      `* **Ubicación:** ${rodrigoKnowledge.profile.location}\n` +
-      `* **Idiomas:** ${rodrigoKnowledge.profile.languages.join(' · ')}\n` +
-      `* **Enfoque principal:** Virtualización de alta disponibilidad, auditorías de cumplimiento open-source y automatización en entornos de producción.`;
+    return `🔒 **Acceso Restringido (Modo Invitado)**\n\n` +
+      `Como invitado, tienes acceso de solo lectura para conocer la trayectoria, habilidades y proyectos de Rodrigo.\n` +
+      `La ejecución de comandos y administración de infraestructura requiere iniciar sesión como **Rodrigo (Administrador)** con su Gmail.`;
   }
 
-  // 2. Experience / ZAP-Hosting / Continental
-  if (
-    q.includes('experiencia') || q.includes('trayectoria') || q.includes('trabajado') ||
-    q.includes('experience') || q.includes('career') || q.includes('zap-hosting') ||
-    q.includes('continental') || q.includes('history')
-  ) {
-    if (q.includes('zap')) {
-      const zap = rodrigoKnowledge.experience[0];
+  // 1. ZAP-Hosting Specific Experience
+  if (q.includes('zap-hosting') || q.includes('zap hosting') || (q.includes('zap') && (q.includes('experiencia') || q.includes('experience')))) {
+    const zap = rodrigoKnowledge.experience[0];
+    if (isEn) {
       return `### ⚡ ${zap.company} — ${zap.role} (${zap.period})\n` +
         `*${zap.location}*\n\n` +
+        `Rodrigo plays a key role supporting and optimizing client infrastructure under strict **ITIL operational processes** and **SLAs**:\n\n` +
         zap.highlights.map(h => `* ${h}`).join('\n') +
-        `\n\n*Rodrigo gestiona infraestructura de clientes bajo estrictos SLAs y procesos ITIL.*`;
+        `\n\n> **Core Impact:** High-reliability virtualization on Proxmox VE, custom Nginx reverse proxy configurations with Let's Encrypt SSL, and packet-level PCAP analysis with Wireshark to diagnose false-positive drops in PletX DDoS filters.`;
     }
-    if (q.includes('continental')) {
-      const cont = rodrigoKnowledge.experience[1];
+    return `### ⚡ ${zap.company} — ${zap.role} (${zap.period})\n` +
+      `*${zap.location}*\n\n` +
+      `Rodrigo desempeña un papel clave en la infraestructura de clientes bajo estrictos estándares operativos **ITIL** y **SLAs**:\n\n` +
+      zap.highlights.map(h => `* ${h}`).join('\n') +
+      `\n\n> **Impacto principal:** Despliegue de virtualización de alto rendimiento en Proxmox VE, configuración de reverse proxies Nginx con certificados Let's Encrypt, y análisis profundo de paquetes PCAP con Wireshark para diagnosticar falsos positivos en filtros anti-DDoS PletX.`;
+  }
+
+  // 2. Continental Automotive Specific Experience (5 years)
+  if (q.includes('continental') || q.includes('5 años') || q.includes('5 anos') || q.includes('5 years')) {
+    const cont = rodrigoKnowledge.experience[1];
+    if (isEn) {
       return `### 🚗 ${cont.company} — ${cont.role} (${cont.period})\n` +
         `*${cont.location}*\n\n` +
+        `Over a tenure of **more than 5 years**, Rodrigo championed open-source compliance and automation for mission-critical automotive software:\n\n` +
         cont.highlights.map(h => `* ${h}`).join('\n') +
-        `\n\n*Durante más de 5 años lideró iniciativas de licenciamiento open-source (SPDX, FOSSology, Black Duck) y automatizaciones Bash/Python.*`;
+        `\n\n> **Key Achievements:** Spearheaded open-source software compliance across extensive enterprise codebases using FOSSology, Black Duck Hub, and SPDX standards. Engineered robust Bash and Python automation pipelines, orchestrated batch enterprise scheduling with Autosys and Control-M, and led cross-functional sprints as **Scrum Master** in Jira.`;
     }
+    return `### 🚗 ${cont.company} — ${cont.role} (${cont.period})\n` +
+      `*${cont.location}*\n\n` +
+      `Durante más de **5 años**, Rodrigo lideró el aseguramiento de cumplimiento de software de código abierto y automatizaciones para sistemas automotrices críticos:\n\n` +
+      cont.highlights.map(h => `* ${h}`).join('\n') +
+      `\n\n> **Logros destacados:** Auditoría exhaustiva de plataformas empresariales mediante herramientas de análisis profundo (FOSSology, Black Duck Hub y especificaciones SPDX). Desarrolló scripts e integraciones en Bash y Python, administró servidores Unix/Linux, automatizó procesos por lotes con Autosys y Control-M, y coordinó ceremonias ágiles como **Scrum Master** en Jira.`;
+  }
 
-    // Full career overview
+  // 3. Studies and Certifications
+  if (
+    q.includes('estudio') || q.includes('certificacion') || q.includes('certificación') ||
+    q.includes('educacion') || q.includes('educación') || q.includes('degree') ||
+    q.includes('itesm') || q.includes('universidad') || q.includes('scrum')
+  ) {
+    const p = rodrigoKnowledge.profile;
+    if (isEn) {
+      return `### 🎓 Education & Professional Certifications\n\n` +
+        `* **Academic Degree:** **${p.education.degree}**\n` +
+        `  - *Institution:* **${p.education.institution}** (Tecnológico de Monterrey)\n` +
+        `  - *Status:* ${p.education.period}\n\n` +
+        `* **Certifications & Operational Methodologies:**\n` +
+        `  - **Scrum Master:** Certified and experienced managing Agile sprints, backlogs, and ceremonies in Jira.\n` +
+        `  - **ITIL Operational Standards:** Incident management, problem determination, and SLA governance in production infrastructure.\n` +
+        `  - **Open-Source Compliance & SPDX:** Certified compliance auditor utilizing FOSSology and Black Duck Hub.\n\n` +
+        `* **Languages:**\n` +
+        `  - English: Advanced / Professional proficiency\n` +
+        `  - Spanish: Native`;
+    }
+    return `### 🎓 Estudios y Certificaciones de Rodrigo\n\n` +
+      `* **Grado Académico:** **${p.education.degree}**\n` +
+      `  - *Institución:* **${p.education.institution}** (Tecnológico de Monterrey)\n` +
+      `  - *Estado:* Titulado\n\n` +
+      `* **Certificaciones y Metodologías Operativas:**\n` +
+      `  - **Scrum Master:** Gestión ágil de sprints, backlogs y ceremonias en Jira para maximizar la predictibilidad de entrega.\n` +
+      `  - **Estándares Operativos ITIL:** Gestión de incidentes, análisis de causa raíz (RCA) y cumplimiento estricto de SLAs.\n` +
+      `  - **Cumplimiento Open-Source & SPDX:** Especialista en auditoría de licencias con FOSSology y Black Duck Hub.\n\n` +
+      `* **Idiomas:**\n` +
+      `  - Inglés: Nivel Profesional Avanzado\n` +
+      `  - Español: Nativo`;
+  }
+
+  // 4. Linux, Nginx and Docker Specific Experience
+  if (
+    (q.includes('linux') && (q.includes('nginx') || q.includes('docker'))) ||
+    q.includes('nginx y docker') || q.includes('linux y nginx')
+  ) {
+    if (isEn) {
+      return `### 🐧 Rodrigo's Experience with Linux, Nginx, and Docker\n\n` +
+        `Rodrigo possesses extensive, daily hands-on experience orchestrating production environments with these core technologies:\n\n` +
+        `* **Debian & Ubuntu Linux (Advanced Administration):**\n` +
+        `  - Manages bare-metal and VPS instances on Debian 13 (Trixie) and Ubuntu Server.\n` +
+        `  - Proficient in systemd daemons, journalctl logging, nftables/iptables firewall rules, and kernel-level performance tuning.\n` +
+        `  - Expert in automation scripting with Bash and Python for backup, monitoring, and health checks.\n\n` +
+        `* **Nginx (High-Performance Reverse Proxy & Web Server):**\n` +
+        `  - Configures reverse proxies with HTTP/2, Let's Encrypt automated SSL/TLS renewal, and OCSP stapling.\n` +
+        `  - Specializes in SSE (Server-Sent Events) and WebSocket streaming setups with zero-buffering (\`X-Accel-Buffering: no\`).\n` +
+        `  - Implements multi-domain virtual hosts, client caching headers, and rate limiting.\n\n` +
+        `* **Docker & Container Orchestration:**\n` +
+        `  - Containerizes web applications and background services with Docker and Docker Compose.\n` +
+        `  - Manages isolated networks, volume persistence, and environment secrets.`;
+    }
+    return `### 🐧 Experiencia de Rodrigo con Linux, Nginx y Docker\n\n` +
+      `Rodrigo cuenta con amplia experiencia práctica y diaria administrando estos pilares en servidores de producción:\n\n` +
+      `* **Linux (Debian & Ubuntu a Nivel Avanzado):**\n` +
+      `  - Administra instancias físicas y VPS bajo Debian 13 (Trixie) y Ubuntu Server con kernel moderno 6.12.\n` +
+      `  - Gestión experta de servicios systemd, logs con journalctl, cortafuegos con nftables/iptables y hardening de seguridad.\n` +
+      `  - Creación de scripts automatizados en Bash y Python para backups, monitoreo y recuperación ante fallos.\n\n` +
+      `* **Nginx (Reverse Proxy de Alto Rendimiento y Servidor Web):**\n` +
+      `  - Configuración de reverse proxies con HTTP/2, terminación SSL/TLS automatizada con Let's Encrypt y gramática de proxy avanzada.\n` +
+      `  - Optimización de streaming SSE (Server-Sent Events) y WebSockets sin buffering (\`X-Accel-Buffering: no\`) para AGy-cli y apps interactivas.\n` +
+      `  - Manejo de múltiples virtual hosts, compresión gzip, políticas de caché estático y mitigación de tráfico abusivo.\n\n` +
+      `* **Docker y Contenedores:**\n` +
+      `  - Despliegue y aislamiento de microservicios mediante Docker y Docker Compose.\n` +
+      `  - Configuración de redes internas bridged, persistencia de volúmenes y gestión segura de variables de entorno.`;
+  }
+
+  // 5. Tech Stack and Languages
+  if (
+    q.includes('stack') || q.includes('lenguaje') || q.includes('domina') ||
+    q.includes('tecnologia') || q.includes('tecnología') || q.includes('skill') ||
+    q.includes('habilidad') || q.includes('tools')
+  ) {
+    const s = rodrigoKnowledge.skills;
+    if (isEn) {
+      return `### 🛠️ Technical Stack & Languages\n\n` +
+        `* **Languages & Scripting:** ${s.programming.join(' · ')}\n` +
+        `* **Infrastructure & Virtualization:** ${s.infrastructure.join(' · ')}\n` +
+        `* **Networking & Security:** ${s.networking.join(' · ')}\n` +
+        `* **Cloud & DevOps:** ${s.cloudAndDevOps.join(' · ')}\n` +
+        `* **Methodologies:** ${s.methodologies.join(' · ')}\n\n` +
+        `*Rodrigo emphasizes robust scripting (Bash/Python) combined with Linux system internals, high-availability Nginx proxying, and proactive observability.*`;
+    }
+    return `### 🛠️ Stack Tecnológico y Lenguajes que Domina Rodrigo\n\n` +
+      `* **Lenguajes y Scripting:** ${s.programming.join(' · ')}\n` +
+      `* **Infraestructura y Virtualización:** ${s.infrastructure.join(' · ')}\n` +
+      `* **Redes y Seguridad:** ${s.networking.join(' · ')}\n` +
+      `* **Cloud y DevOps:** ${s.cloudAndDevOps.join(' · ')}\n` +
+      `* **Metodologías:** ${s.methodologies.join(' · ')}\n\n` +
+      `*El fuerte de Rodrigo radica en la integración de scripting avanzado (Bash/Python) con la administración profunda de Linux, reverse proxies Nginx y arquitecturas resilientes.*`;
+  }
+
+  // 6. VPS Infrastructure Configuration
+  if (
+    q.includes('vps') || q.includes('infraestructura') || q.includes('servidor') ||
+    q.includes('hardware') || q.includes('stingray') || q.includes('specs') || q.includes('debian 13')
+  ) {
+    const vps = rodrigoKnowledge.infrastructure.vps;
+    const pc = rodrigoKnowledge.infrastructure.desktopPC;
+    if (isEn) {
+      return `### 🖥️ Rodrigo's VPS Infrastructure & Hardware Architecture\n\n` +
+        `**Production VPS (${vps.hostname}):**\n` +
+        `* **Provider:** ${vps.provider} (Debian 13 Trixie x86_64, Kernel ${vps.kernel})\n` +
+        `* **Resources:** ${vps.specs} on ${vps.hypervisor} hypervisors\n` +
+        `* **Active Workloads:** ${vps.services}\n` +
+        `  - **therodrigo.com (Portfolio):** Node.js Express 5 + PM2 (Port 3000)\n` +
+        `  - **PresWin Suite:** Construction estimation app (Port 4000)\n` +
+        `  - **TotiMigraciones:** Immigration legal portal & Postfix/Dovecot mail stack (Port 3001)\n` +
+        `  - **Ask-Rodrigo:** AGy-cli Bridge & AI agent (Port 3005)\n` +
+        `  - **Appointment Checker:** Python consular daemon (Port 8090)\n` +
+        `  - **Remote Desktop:** xrdp / TigerVNC on port 25400\n\n` +
+        `**Engineering Workstation (${pc.name}):**\n` +
+        `* **CPU:** ${pc.cpu} | **GPU:** ${pc.gpu}\n` +
+        `* **RAM:** ${pc.ram} | **Storage:** ${pc.storage}`;
+    }
+    return `### 🖥️ Configuración de la Infraestructura VPS de Rodrigo\n\n` +
+      `**VPS en Producción (${vps.hostname}):**\n` +
+      `* **Proveedor:** ${vps.provider} (Debian 13 Trixie x86_64, Kernel ${vps.kernel})\n` +
+      `* **Recursos asignados:** ${vps.specs} bajo hypervisores ${vps.hypervisor}\n` +
+      `* **Servicios activos:**\n` +
+      `  - **therodrigo.com:** Portafolio principal en Express 5 + PM2 (Puerto 3000)\n` +
+      `  - **PresWin:** Suite de cálculo de costos de construcción (Puerto 4000)\n` +
+      `  - **TotiMigraciones:** Portal de trámites de extranjería y servidor de correo Postfix/Dovecot (Puerto 3001)\n` +
+      `  - **Ask-Rodrigo:** Wrapper de Antigravity CLI e IA de conocimiento (Puerto 3005)\n` +
+      `  - **Appointment Checker:** Demonio Python en segundo plano (Puerto 8090)\n` +
+      `  - **Escritorio Remoto:** xrdp / TigerVNC (Puerto 25400)\n\n` +
+      `**Estación de Trabajo (${pc.name}):**\n` +
+      `* **CPU:** ${pc.cpu} | **GPU:** ${pc.gpu}\n` +
+      `* **RAM:** ${pc.ram} | **Almacenamiento:** ${pc.storage}`;
+  }
+
+  // 7. General Experience Overview
+  if (q.includes('experiencia') || q.includes('trayectoria') || q.includes('trabajo') || q.includes('career')) {
     const jobs = rodrigoKnowledge.experience.map(j => (
       `* **${j.company}** — *${j.role}* (${j.period})\n  ${j.highlights.slice(0, 2).map(h => `- ${h}`).join('\n  ')}`
     )).join('\n\n');
 
-    return (isEn ? `### Rodrigo's Career Timeline\n\n${jobs}\n\nAsk me about any specific role for more details!`
-                 : `### Trayectoria Profesional de Rodrigo\n\n${jobs}\n\n¡Puedes preguntarme en detalle sobre cualquiera de estas empresas!`);
+    return (isEn ? `### 💼 Rodrigo's Career Overview\n\n${jobs}\n\nFeel free to ask for deep details about his work at ZAP-Hosting or Continental Automotive!`
+                 : `### 💼 Resumen de la Trayectoria de Rodrigo\n\n${jobs}\n\n¡Puedes preguntarme en detalle sobre su experiencia en ZAP-Hosting o Continental Automotive!`);
   }
 
-  // 3. Technical Skills / Stack
-  if (
-    q.includes('skill') || q.includes('habilidad') || q.includes('stack') ||
-    q.includes('tecnologia') || q.includes('tecnología') || q.includes('lenguaje') ||
-    q.includes('python') || q.includes('bash') || q.includes('linux') || q.includes('docker')
-  ) {
-    const s = rodrigoKnowledge.skills;
-    return (isEn ? `### 🛠️ Technical Stack & Capabilities\n\n` : `### 🛠️ Stack Tecnológico y Habilidades\n\n`) +
-      `* **Programming & Scripting:** ${s.programming.join(', ')}\n` +
-      `* **Networking & Security:** ${s.networking.join(', ')}\n` +
-      `* **Infrastructure & Virtualization:** ${s.infrastructure.join(', ')}\n` +
-      `* **Cloud & Tools:** ${s.cloudAndDevOps.join(', ')}\n` +
-      `* **Methodologies:** ${s.methodologies.join(', ')}`;
-  }
-
-  // 4. Projects
-  if (
-    q.includes('proyecto') || q.includes('project') || q.includes('portfolio') ||
-    q.includes('preswin') || q.includes('totimigracion') || q.includes('appointment') ||
-    q.includes('wiwishop') || q.includes('inspection')
-  ) {
+  // 8. Projects Overview
+  if (q.includes('proyecto') || q.includes('project') || q.includes('preswin') || q.includes('wiwishop')) {
     const pList = rodrigoKnowledge.projects.map(p => (
       `* **${p.name}** [${p.status}]\n  - *Stack:* ${p.stack}\n  - *Resumen:* ${p.description}\n  - *Enlace:* ${p.url}`
     )).join('\n\n');
@@ -102,81 +232,56 @@ function localKnowledgeResponder(userMessage) {
                  : `### 🚀 Portafolio de Proyectos en Producción\n\n${pList}`);
   }
 
-  // 5. Infrastructure / Hardware / Servers
-  if (
-    q.includes('servidor') || q.includes('vps') || q.includes('infraestructura') ||
-    q.includes('hardware') || q.includes('server') || q.includes('desktop') ||
-    q.includes('debian') || q.includes('stingray') || q.includes('ryzen')
-  ) {
-    const vps = rodrigoKnowledge.infrastructure.vps;
-    const pc = rodrigoKnowledge.infrastructure.desktopPC;
-    return `### 🖥️ Infraestructura y Equipamiento\n\n` +
-      `**VPS en Producción (${vps.hostname}):**\n` +
-      `* **Proveedor:** ${vps.provider} (Debian 13 Trixie x86_64)\n` +
-      `* **Recursos:** ${vps.specs} con hypervisor ${vps.hypervisor}\n` +
-      `* **Servicios activos:** ${vps.services}\n\n` +
-      `**Estación de Trabajo (${pc.name}):**\n` +
-      `* **CPU:** ${pc.cpu} | **GPU:** ${pc.gpu}\n` +
-      `* **RAM:** ${pc.ram} | **Almacenamiento:** ${pc.storage}`;
-  }
-
-  // 6. Contact / Hire / LinkedIn / Email
-  if (
-    q.includes('contacto') || q.includes('contact') || q.includes('email') ||
-    q.includes('correo') || q.includes('telefono') || q.includes('teléfono') ||
-    q.includes('linkedin') || q.includes('contratar') || q.includes('hire') ||
-    q.includes('whatsapp')
-  ) {
+  // 9. Contact
+  if (q.includes('contacto') || q.includes('contact') || q.includes('email') || q.includes('correo') || q.includes('linkedin')) {
     const c = rodrigoKnowledge.profile.contact;
-    return (isEn ? `### 📬 Get in Touch with Rodrigo\n\n` : `### 📬 Contacta a Rodrigo\n\n`) +
-      `Rodrigo está disponible para oportunidades profesionales y consultas técnicas:\n\n` +
+    return `### 📬 Contacto Directo con Rodrigo\n\n` +
       `* **Email:** [${c.email}](mailto:${c.email})\n` +
-      `* **LinkedIn:** [Perfil en LinkedIn](${c.linkedin})\n` +
-      `* **WhatsApp / Teléfono:** [${c.phone}](${c.whatsapp})\n` +
-      `* **Portafolio Oficial:** [${c.website}](${c.website})`;
+      `* **LinkedIn:** [Perfil Oficial en LinkedIn](${c.linkedin})\n` +
+      `* **WhatsApp:** [${c.phone}](${c.whatsapp})\n` +
+      `* **Portafolio:** [${c.website}](${c.website})`;
   }
 
-  // 7. General fallback
-  if (isEn) {
-    return `I can help you explore everything about **Luis Rodrigo García Hernández**!\n\n` +
-      `Here are some topics you can ask me about:\n` +
-      `* **Career & Roles:** His work at ZAP-Hosting and 5 years at Continental Automotive.\n` +
-      `* **Technical Skills:** Linux (Debian/Ubuntu), Proxmox, Bash, Python, Nginx, Docker, Wireshark.\n` +
-      `* **Projects:** PresWin, therodrigo.com, Appointment Checker, and Industrial Work Order Suite.\n` +
-      `* **Contact Information:** Email, LinkedIn, and direct messaging channels.`;
-  }
-
-  return `¡Hola! Conozco en detalle la trayectoria, habilidades y proyectos de **Luis Rodrigo García Hernández**.\n\n` +
-    `Puedes preguntarme sobre:\n` +
-    `* **Experiencia laboral:** Su trabajo actual en ZAP-Hosting o sus 5 años en Continental Automotive.\n` +
-    `* **Habilidades técnicas:** Linux (Debian 13), Proxmox VE, Bash, Python, Nginx, Docker, análisis PCAP con Wireshark.\n` +
-    `* **Proyectos en producción:** PresWin, therodrigo.com, Appointment Checker y suites de inspección industrial.\n` +
-    `* **Contacto y contratación:** Correo electrónico, LinkedIn y disponibilidad.`;
+  // 10. Default Friendly Overview
+  return isEn
+    ? `I am here to tell you everything about **Luis Rodrigo García Hernández**!\n\n` +
+      `Here are recommended questions you can ask:\n` +
+      `* **What is Rodrigo's experience at ZAP-Hosting?**\n` +
+      `* **What did Rodrigo accomplish during his 5 years at Continental Automotive?**\n` +
+      `* **What degrees and certifications does Rodrigo have?**\n` +
+      `* **What technical stack and languages does Rodrigo master?**\n` +
+      `* **How is his VPS server infrastructure configured?**\n` +
+      `* **Does Rodrigo have experience with Linux, Nginx, and Docker?**`
+    : `¡Hola! Conozco en detalle la trayectoria, habilidades y proyectos de **Luis Rodrigo García Hernández**.\n\n` +
+      `Aquí tienes algunas preguntas recomendadas que puedes hacerme:\n` +
+      `* **¿Cuál es la experiencia de Rodrigo en ZAP-Hosting?**\n` +
+      `* **¿Qué hizo Rodrigo durante sus 5 años en Continental Automotive?**\n` +
+      `* **¿Qué estudios y certificaciones tiene Rodrigo?**\n` +
+      `* **¿Qué stack tecnológico y lenguajes domina Rodrigo?**\n` +
+      `* **¿Cómo está configurada su infraestructura de servidores VPS?**\n` +
+      `* **¿Tiene experiencia con Linux, Nginx y Docker?**`;
 }
 
 /**
  * Generate chat response using configured LLM or fallback knowledge engine
  */
-export async function generateChatResponse(message, history = []) {
+export async function generateChatResponse(message, history = [], options = {}) {
   const geminiApiKey = process.env.GEMINI_API_KEY;
   const modelName = process.env.AI_MODEL || 'gemini-2.5-flash';
+  const isGuest = options.isGuest || false;
 
   if (geminiApiKey && geminiApiKey.trim() !== '') {
     try {
       const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-      
-      // Build conversation turns
       const contents = [];
-      
-      // Add previous turns
+
       for (const turn of history.slice(-6)) {
         contents.push({
-          role: turn.sender === 'user' ? 'user' : 'model',
-          parts: [{ text: turn.text }]
+          role: turn.sender === 'user' || turn.role === 'user' ? 'user' : 'model',
+          parts: [{ text: turn.text || turn.content || '' }]
         });
       }
 
-      // Add current message
       contents.push({
         role: 'user',
         parts: [{ text: message }]
@@ -198,22 +303,21 @@ export async function generateChatResponse(message, history = []) {
         timestamp: new Date().toISOString()
       };
     } catch (error) {
-      console.error('[AI Service Error]: Gemini API call failed, reverting to local engine:', error.message);
-      // Fallback gracefully if API quota, network, or key fails
-      const fallbackReply = localKnowledgeResponder(message);
+      console.warn('[AI Service Warning]: Gemini call failed, using local knowledge engine:', error.message);
+      const fallbackReply = localKnowledgeResponder(message, isGuest);
       return {
         reply: fallbackReply,
-        engine: 'Local Knowledge Engine (Fallback)',
+        engine: 'Knowledge AI (Modo Invitado)',
         timestamp: new Date().toISOString()
       };
     }
   }
 
-  // Default: Instant Local Knowledge Reasoning Engine
-  const localReply = localKnowledgeResponder(message);
+  // Zero-Config Local Knowledge Engine
+  const localReply = localKnowledgeResponder(message, isGuest);
   return {
     reply: localReply,
-    engine: 'Local Knowledge Engine (Zero-Config Active)',
+    engine: isGuest ? 'Knowledge AI (Modo Invitado)' : 'Knowledge AI (Base Local)',
     timestamp: new Date().toISOString()
   };
 }
