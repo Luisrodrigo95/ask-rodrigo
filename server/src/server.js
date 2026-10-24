@@ -20,11 +20,12 @@ const PORT = process.env.PORT || 3005;
 // Trust Nginx reverse proxy headers (X-Forwarded-For, X-Forwarded-Proto)
 app.set('trust proxy', 1);
 
-// Security Middleware with custom CSP to permit local frontend styles and scripts
+// Security Middleware with custom CSP & same-origin-allow-popups for Google OAuth
 app.use(
   helmet({
     contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }
   })
 );
 

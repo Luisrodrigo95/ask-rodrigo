@@ -111,6 +111,12 @@ export async function loginGoogle(req, res) {
     const { credential, accessToken } = req.body;
     const tokenToVerify = credential || accessToken;
 
+    console.log('[loginGoogle] Auth attempt received:', {
+      hasCredential: Boolean(credential),
+      hasAccessToken: Boolean(accessToken),
+      tokenPrefix: tokenToVerify ? String(tokenToVerify).slice(0, 15) + '...' : 'none'
+    });
+
     if (!tokenToVerify) {
       return res.status(400).json({ error: 'Token de Google no recibido.' });
     }

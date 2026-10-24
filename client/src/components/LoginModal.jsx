@@ -168,22 +168,27 @@ export function LoginModal({
           client_id: clientIdToUse,
           scope: 'email profile openid',
           callback: async (tokenResponse) => {
+            console.log('[Google OAuth TokenResponse]:', tokenResponse);
             if (tokenResponse?.access_token) {
               try {
                 await onGoogleLogin(null, tokenResponse.access_token);
                 onClose();
               } catch (err) {
+                console.error('[Google onGoogleLogin Error]:', err);
                 setError(err.message || 'Google account verification failed');
               } finally {
                 setLoading(false);
               }
             } else if (tokenResponse?.error) {
+              console.warn('[Google OAuth Error Response]:', tokenResponse);
               setError(`Google OAuth: ${tokenResponse.error_description || tokenResponse.error}`);
+              setLoading(false);
+            } else {
               setLoading(false);
             }
           }
         });
-        client.requestAccessToken();
+        client.requestAccessToken({ prompt: 'select_account' });
       } catch (err) {
         setLoading(false);
         setError('Error launching Google account picker: ' + err.message);
