@@ -93,7 +93,14 @@ export async function loginWithGoogle(credential, accessToken = null) {
   }
   const data = await response.json();
   setAuthToken(data.token);
-  setStoredUser({ role: 'admin', name: data.name, email: data.email, picture: data.picture });
+  setStoredUser({
+    role: 'admin',
+    name: data.name,
+    email: data.email,
+    picture: data.picture,
+    isOwner: data.isOwner,
+    canEditProjects: data.canEditProjects
+  });
   return data;
 }
 
@@ -425,3 +432,56 @@ export async function deleteAdminNote(id) {
   if (!response.ok) throw new Error('Error al eliminar nota');
   return await response.json();
 }
+
+/**
+ * User Management (Owner only)
+ */
+export async function fetchUsers() {
+  const response = await fetch(`${API_BASE}/users`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    if (response.status === 403) return { users: [] };
+    throw new Error('Error al obtener lista de usuarios');
+  }
+  return await response.json();
+}
+
+export async function addAuthorizedUser(email, canEditProjects = false) {
+  const response = await fetch(`${API_BASE}/users`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ email, canEditProjects })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al agregar usuario autorizado');
+  }
+  return await response.json();
+}
+
+export async function updateUserPermission(email, canEditProjects) {
+  const response = await fetch(`${API_BASE}/users/${encodeURIComponent(email)}/permissions`, {
+    method: 'PATCH',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ canEditProjects })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al actualizar permisos del usuario');
+  }
+  return await response.json();
+}
+
+export async function deleteAuthorizedUser(email) {
+  const response = await fetch(`${API_BASE}/users/${encodeURIComponent(email)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al revocar acceso al usuario');
+  }
+  return await response.json();
+}
+

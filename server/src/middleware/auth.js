@@ -39,12 +39,26 @@ export function requireAuth(req, res, next) {
 }
 
 /**
- * Strictly requires Admin role (Rodrigo)
+ * Strictly requires Admin role (Rodrigo or authorized collaborator)
  */
 export function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({
-      error: 'Acceso restringido. Esta funcionalidad requiere privilegios de Administrador (Rodrigo).'
+      error: 'Acceso restringido. Esta funcionalidad requiere privilegios de Administrador.'
+    });
+  }
+  next();
+}
+
+/**
+ * Strictly requires Owner role (Rodrigo only)
+ */
+export function requireOwner(req, res, next) {
+  const primaryAdmin = (process.env.PRIMARY_ADMIN_EMAIL || 'lg2012garcia@gmail.com').toLowerCase().trim();
+  const userEmail = (req.user?.email || '').toLowerCase().trim();
+  if (!req.user || req.user.role !== 'admin' || (!req.user.isOwner && userEmail !== primaryAdmin)) {
+    return res.status(403).json({
+      error: 'Acceso denegado: Esta acción está reservada exclusivamente para el Propietario del sistema (Rodrigo).'
     });
   }
   next();

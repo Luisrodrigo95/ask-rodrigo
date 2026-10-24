@@ -150,7 +150,7 @@ export function PrimaryRail({
             <span className="text-[10px] font-mono text-muted flex items-center gap-1">
               {isAdmin ? (
                 <span className="text-emerald-400 font-medium flex items-center gap-0.5">
-                  <ShieldCheck className="w-2.5 h-2.5" /> AGy Admin
+                  <ShieldCheck className="w-2.5 h-2.5" /> {currentUser?.isOwner ? 'AGy Owner' : 'AGy Collab'}
                 </span>
               ) : (
                 <span>Guest Mode</span>
@@ -311,15 +311,30 @@ export function PrimaryRail({
                       : 'bg-gradient-to-tr from-slate-600 to-slate-500'
                   }`}
                 >
-                  {isAdmin ? 'RG' : <User className="w-3.5 h-3.5" />}
+                  {isAdmin
+                    ? (currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'RG')
+                    : <User className="w-3.5 h-3.5" />}
                 </div>
               )}
               {!isCollapsed && (
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-ink">
-                    {currentUser?.name || (isAdmin ? 'Rodrigo García' : 'Guest Explorer')}
-                  </p>
-                  <p className="truncate text-[10px] text-muted">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-xs font-semibold text-ink">
+                      {currentUser?.name || (isAdmin ? 'Rodrigo García' : 'Guest Explorer')}
+                    </p>
+                    {isAdmin && (
+                      <span className={`text-[8.5px] px-1 py-0.2 rounded font-mono ${
+                        currentUser?.isOwner
+                          ? 'bg-amber-500/15 text-amber-400 font-semibold'
+                          : currentUser?.canEditProjects
+                          ? 'bg-emerald-500/15 text-emerald-400'
+                          : 'bg-slate-700/60 text-slate-300'
+                      }`}>
+                        {currentUser?.isOwner ? 'Owner' : currentUser?.canEditProjects ? 'Editor' : 'Collab'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-[10px] text-muted font-mono">
                     {currentUser?.email || (isAdmin ? 'lg2012garcia@gmail.com' : 'Click to authenticate')}
                   </p>
                 </div>

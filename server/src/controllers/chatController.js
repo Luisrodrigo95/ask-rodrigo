@@ -4,7 +4,9 @@ import {
   executeAgyPrompt,
   listAgyConversations,
   getConversationTranscript,
-  deleteAgyConversation
+  deleteAgyConversation,
+  batchDeleteAgyConversations,
+  batchArchiveAgyConversations
 } from '../services/agyBridgeService.js';
 import { getSystemMetrics } from '../services/metricsService.js';
 import {
@@ -43,7 +45,11 @@ export async function chatHandler(req, res) {
     // 2. Admin Mode: Full AGy-cli Bridge execution
     if (engine === 'agy') {
       try {
-        const agyResult = await executeAgyPrompt(cleanMsg, { conversationId });
+        let effectivePrompt = cleanMsg;
+        if (!req.user?.canEditProjects && !req.user?.isOwner) {
+          effectivePrompt = `[RESTRICCIÓN DE SEGURIDAD]: El usuario actual (${req.user?.name} <${req.user?.email}>) tiene rol de Colaborador con permiso de SOLO LECTURA sobre los proyectos del servidor. NO tiene autorización para editar, modificar, borrar o sobreescribir archivos en /var/www ni proyectos existentes hasta que Rodrigo lo autorice expresamente. Puedes responder sus dudas, explicar el código o crear archivos en /home/bombi/uploads, pero NUNCA modifiques el código existente.\n\nConsulta del usuario:\n${cleanMsg}`;
+        }
+        const agyResult = await executeAgyPrompt(effectivePrompt, { conversationId });
         return res.json({
           ...agyResult,
           role: 'admin'
@@ -154,7 +160,12 @@ export async function chatStreamHandler(req, res) {
 
     let activeConvId = conversationId || null;
 
-    const result = await executeAgyPrompt(message.trim(), {
+    let effectiveMessage = message.trim();
+    if (!req.user?.canEditProjects && !req.user?.isOwner) {
+      effectiveMessage = `[RESTRICCIÓN DE SEGURIDAD]: El usuario actual (${req.user?.name} <${req.user?.email}>) tiene rol de Colaborador con permiso de SOLO LECTURA sobre los proyectos del servidor. NO tiene autorización para editar, modificar, borrar o sobreescribir archivos en /var/www ni proyectos existentes hasta que Rodrigo lo autorice expresamente. Puedes responder sus dudas, explicar el código o crear archivos en /home/bombi/uploads, pero NUNCA modifiques el código existente.\n\nConsulta del usuario:\n${message.trim()}`;
+    }
+
+    const result = await executeAgyPrompt(effectiveMessage, {
       conversationId: activeConvId,
       cwd: targetCwd,
       onInit: (assignedId) => {
@@ -221,6 +232,40 @@ export async function deleteConversationHandler(req, res) {
     return res.json({ ok });
   } catch (err) {
     return res.status(500).json({ error: 'Error eliminando conversación', details: err.message });
+  }
+}
+
+/**
+ * Batch deletes multiple conversations (Admin only).
+ * POST /api/conversations/batch-delete
+ */
+export async function batchDeleteConversationsHandler(req, res) {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Lista de IDs requerida' });
+    }
+    const ok = await batchDeleteAgyConversations(ids);
+    return res.json({ ok, deletedCount: ids.length });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error en eliminación múltiple', details: err.message });
+  }
+}
+
+/**
+ * Batch archives / unarchives multiple conversations (Admin only).
+ * POST /api/conversations/batch-archive
+ */
+export async function batchArchiveConversationsHandler(req, res) {
+  try {
+    const { ids, archived = true } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Lista de IDs requerida' });
+    }
+    const ok = batchArchiveAgyConversations(ids, archived);
+    return res.json({ ok, count: ids.length, archived: Boolean(archived) });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error en archivado múltiple', details: err.message });
   }
 }
 

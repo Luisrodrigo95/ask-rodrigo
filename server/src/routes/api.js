@@ -5,6 +5,8 @@ import {
   conversationsHandler,
   conversationDetailHandler,
   deleteConversationHandler,
+  batchDeleteConversationsHandler,
+  batchArchiveConversationsHandler,
   metricsHandler,
   calendarGetHandler,
   calendarPostHandler,
@@ -25,14 +27,22 @@ import {
 import {
   uploadMiddleware,
   uploadFileHandler,
-  listUploadsHandler
+  listUploadsHandler,
+  batchDeleteUploadsHandler,
+  batchArchiveUploadsHandler
 } from '../controllers/uploadController.js';
 import {
   getNotesHandler,
   saveNoteHandler,
   deleteNoteHandler
 } from '../controllers/notesController.js';
-import { authenticateToken, requireAdmin } from '../middleware/auth.js';
+import {
+  listUsersHandler,
+  addUserHandler,
+  updateUserPermissionsHandler,
+  deleteUserHandler
+} from '../controllers/userController.js';
+import { authenticateToken, requireAdmin, requireOwner } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -57,6 +67,8 @@ router.all('/chat/stream', chatStreamHandler);
 
 // --- Admin-Only Endpoints (Antigravity sessions & VPS metrics) ---
 router.get('/conversations', requireAdmin, conversationsHandler);
+router.post('/conversations/batch-delete', requireAdmin, batchDeleteConversationsHandler);
+router.post('/conversations/batch-archive', requireAdmin, batchArchiveConversationsHandler);
 router.get('/conversations/:id', requireAdmin, conversationDetailHandler);
 router.delete('/conversations/:id', requireAdmin, deleteConversationHandler);
 router.get('/metrics', requireAdmin, metricsHandler);
@@ -84,5 +96,13 @@ router.post('/upload', requireAdmin, (req, res, next) => {
   });
 }, uploadFileHandler);
 router.get('/upload/list', requireAdmin, listUploadsHandler);
+router.post('/upload/batch-delete', requireAdmin, batchDeleteUploadsHandler);
+router.post('/upload/batch-archive', requireAdmin, batchArchiveUploadsHandler);
+
+// --- Owner-Only User Management (Authorized Google Accounts) ---
+router.get('/users', requireOwner, listUsersHandler);
+router.post('/users', requireOwner, addUserHandler);
+router.patch('/users/:email/permissions', requireOwner, updateUserPermissionsHandler);
+router.delete('/users/:email', requireOwner, deleteUserHandler);
 
 export default router;

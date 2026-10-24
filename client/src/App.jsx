@@ -271,7 +271,14 @@ export function App() {
 
   const handleGoogleLogin = async (credential, accessToken) => {
     const data = await loginWithGoogle(credential, accessToken);
-    setCurrentUser({ role: 'admin', name: data.name, email: data.email, picture: data.picture });
+    setCurrentUser({
+      role: 'admin',
+      name: data.name,
+      email: data.email,
+      picture: data.picture,
+      isOwner: Boolean(data.isOwner),
+      canEditProjects: Boolean(data.canEditProjects)
+    });
     loadConversations();
     loadMetrics();
   };

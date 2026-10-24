@@ -1,0 +1,22 @@
+[
+  {
+    "email": "lg2012garcia@gmail.com",
+    "name": "Luis Rodrigo García Hernández",
+    "role": "admin",
+    "isOwner": true,
+    "canEditProjects": true,
+    "picture": null,
+    "addedAt": "2026-10-24T19:27:00.000Z",
+    "lastLogin": "2026-10-24T19:27:00.000Z"
+  },
+  {
+    "email": "contacto@therodrigo.com",
+    "name": "Rodrigo García (Oficial)",
+    "role": "admin",
+    "isOwner": true,
+    "canEditProjects": true,
+    "picture": null,
+    "addedAt": "2026-10-24T19:27:00.000Z",
+    "lastLogin": null
+  }
+]

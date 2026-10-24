@@ -1,7 +1,12 @@
 import { signUserToken } from '../middleware/auth.js';
+import {
+  getUserByEmail,
+  updateUser,
+  addUser,
+  isEmailAuthorized
+} from '../services/userService.js';
 
-const PRIMARY_ADMIN_EMAIL = process.env.PRIMARY_ADMIN_EMAIL || 'lg2012garcia@gmail.com';
-const ADMIN_PIN = process.env.ADMIN_PIN;
+const PRIMARY_ADMIN_EMAIL = (process.env.PRIMARY_ADMIN_EMAIL || 'lg2012garcia@gmail.com').toLowerCase().trim();
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || `${PRIMARY_ADMIN_EMAIL},contacto@therodrigo.com`)
   .split(',')
   .map(e => e.trim().toLowerCase());
@@ -26,6 +31,8 @@ export function loginGuest(req, res) {
       name: 'Invitado',
       email: null,
       scope: 'read:knowledge',
+      isOwner: false,
+      canEditProjects: false,
       createdAt: new Date().toISOString()
     };
 
@@ -57,7 +64,8 @@ export function loginAdmin(req, res) {
 /**
  * Direct Google OAuth Login:
  * Verifies Google ID token or OAuth access token with Google's servers.
- * STRICT CHECK: Grants full unrestricted admin access IF AND ONLY IF email === lg2012garcia@gmail.com.
+ * Retrieves real name, email, and avatar from Google.
+ * Verifies against authorized users database.
  */
 export async function loginGoogle(req, res) {
   try {
@@ -76,7 +84,7 @@ export async function loginGoogle(req, res) {
     }
 
     let email = null;
-    let name = 'Rodrigo García';
+    let name = null;
     let picture = null;
     let emailVerified = false;
 
@@ -86,9 +94,9 @@ export async function loginGoogle(req, res) {
         const idTokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
         if (idTokenRes.ok) {
           const idData = await idTokenRes.json();
-          email = (idData.email || '').toLowerCase();
+          email = (idData.email || '').toLowerCase().trim();
           emailVerified = idData.email_verified === 'true' || idData.email_verified === true;
-          name = idData.name || name;
+          name = idData.name || null;
           picture = idData.picture || null;
         }
       } catch (errId) {
@@ -104,9 +112,9 @@ export async function loginGoogle(req, res) {
         });
         if (userinfoRes.ok) {
           const userData = await userinfoRes.json();
-          email = (userData.email || '').toLowerCase();
+          email = (userData.email || '').toLowerCase().trim();
           emailVerified = userData.email_verified === true || userData.email_verified === 'true';
-          name = userData.name || name;
+          name = userData.name || null;
           picture = userData.picture || null;
         }
       } catch (errUser) {
@@ -126,24 +134,49 @@ export async function loginGoogle(req, res) {
       return res.status(403).json({ error: 'El correo de Google no está verificado.' });
     }
 
-    // STRICT CHECK: Only Rodrigo's Gmail is granted admin access
-    const isAuthorized = email === PRIMARY_ADMIN_EMAIL || ADMIN_EMAILS.includes(email);
+    // CHECK AUTHORIZATION: Rodrigo or authorized user in database / env
+    const isOwner = email === PRIMARY_ADMIN_EMAIL;
+    let userRecord = getUserByEmail(email);
 
-    if (!isAuthorized) {
-      console.warn(`[loginGoogle] Unauthorized email attempt: ${email}. Allowed: ${PRIMARY_ADMIN_EMAIL}, ${ADMIN_EMAILS.join(',')}`);
-      return res.status(403).json({
-        error: `Acceso restringido: La cuenta ${email} no tiene permisos de Administrador. Solo ${PRIMARY_ADMIN_EMAIL} puede acceder a las funciones avanzadas.`
+    // If user is in ADMIN_EMAILS env variable but not in JSON yet, auto-register them
+    if (!userRecord && ADMIN_EMAILS.includes(email)) {
+      userRecord = addUser({
+        email,
+        name: name || email.split('@')[0],
+        isOwner,
+        canEditProjects: isOwner,
+        picture
       });
     }
 
-    console.log(`[loginGoogle] Authorized admin login for: ${email}`);
+    if (!isOwner && !userRecord) {
+      console.warn(`[loginGoogle] Unauthorized email attempt: ${email}`);
+      return res.status(403).json({
+        error: `Acceso restringido: La cuenta ${email} no está autorizada. Contacta a Rodrigo para solicitar acceso a Ask-Rodrigo.`
+      });
+    }
+
+    // If user exists, update their real name & picture from Google and lastLogin
+    const finalName = name || (userRecord && userRecord.name) || email.split('@')[0];
+    const finalPicture = picture || (userRecord && userRecord.picture) || null;
+    const canEditProjects = isOwner ? true : Boolean(userRecord?.canEditProjects);
+
+    updateUser(email, {
+      name: finalName,
+      picture: finalPicture,
+      lastLogin: new Date().toISOString()
+    });
+
+    console.log(`[loginGoogle] Authorized login for ${finalName} (${email}) - Owner: ${isOwner}, EditProjects: ${canEditProjects}`);
 
     const payload = {
       role: 'admin',
-      name: name || 'Rodrigo García',
+      name: finalName,
       email,
-      picture,
-      scope: 'full:admin',
+      picture: finalPicture,
+      isOwner,
+      canEditProjects,
+      scope: isOwner ? 'full:owner' : 'full:collaborator',
       createdAt: new Date().toISOString()
     };
 
@@ -154,9 +187,11 @@ export async function loginGoogle(req, res) {
       role: 'admin',
       name: payload.name,
       email: payload.email,
-      picture,
+      picture: payload.picture,
+      isOwner: payload.isOwner,
+      canEditProjects: payload.canEditProjects,
       token,
-      message: 'Autenticación con Google completada exitosamente. Acceso total a Ask-Rodrigo concedido.'
+      message: `Autenticación con Google completada. ¡Bienvenido, ${payload.name}!`
     });
   } catch (err) {
     console.error('[Auth loginGoogle Error]:', err);
@@ -182,7 +217,10 @@ export function getMe(req, res) {
     user: {
       role: req.user.role,
       name: req.user.name,
-      email: req.user.email
+      email: req.user.email,
+      picture: req.user.picture || null,
+      isOwner: Boolean(req.user.isOwner),
+      canEditProjects: Boolean(req.user.canEditProjects)
     }
   });
 }

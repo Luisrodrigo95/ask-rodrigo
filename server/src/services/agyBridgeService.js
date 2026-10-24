@@ -3,6 +3,11 @@ import readline from 'readline';
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CONV_META_PATH = path.join(__dirname, '../data/conversations_meta.json');
 
 const execFileAsync = promisify(execFile);
 
@@ -174,32 +179,67 @@ export async function executeAgyPrompt(message, options = {}) {
   });
 }
 
+export function getConversationsMeta() {
+  try {
+    if (!fs.existsSync(CONV_META_PATH)) return {};
+    const raw = fs.readFileSync(CONV_META_PATH, 'utf-8');
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+export function saveConversationsMeta(meta) {
+  try {
+    fs.writeFileSync(CONV_META_PATH, JSON.stringify(meta, null, 2), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('[ConversationsMeta] save error:', e.message);
+    return false;
+  }
+}
+
+export function batchArchiveAgyConversations(ids = [], archived = true) {
+  const meta = getConversationsMeta();
+  for (const id of ids) {
+    if (typeof id !== 'string') continue;
+    const cleanId = id.trim();
+    if (!cleanId) continue;
+    if (!meta[cleanId]) meta[cleanId] = {};
+    meta[cleanId].archived = Boolean(archived);
+    meta[cleanId].updatedAt = new Date().toISOString();
+  }
+  return saveConversationsMeta(meta);
+}
+
 /**
  * Retrieves the recent conversations list from Antigravity summaries SQLite database.
  *
- * @param {number} [limit=25]
- * @returns {Promise<Array<{ conversation_id: string, title: string, preview: string, last_modified_time: string, step_count: number }>>}
+ * @param {number} [limit=100]
+ * @returns {Promise<Array<{ id: string, title: string, preview: string, lastModified: string, stepCount: number, archived: boolean }>>}
  */
-export async function listAgyConversations(limit = 25) {
+export async function listAgyConversations(limit = 100) {
   try {
     if (!fs.existsSync(AGY_DB_PATH)) {
       return [];
     }
 
-    const query = `SELECT conversation_id, title, preview, last_modified_time, step_count FROM conversation_summaries WHERE killed = 0 ORDER BY last_modified_time DESC LIMIT ${Math.max(1, Math.min(100, limit))};`;
+    const query = `SELECT conversation_id, title, preview, last_modified_time, step_count FROM conversation_summaries WHERE killed = 0 ORDER BY last_modified_time DESC LIMIT ${Math.max(1, Math.min(200, limit))};`;
     const { stdout } = await execFileAsync('sqlite3', ['-json', AGY_DB_PATH, query]);
 
     if (!stdout || !stdout.trim()) {
       return [];
     }
 
+    const meta = getConversationsMeta();
     const items = JSON.parse(stdout);
     return items.map((item) => ({
       id: item.conversation_id,
       title: item.title || item.preview || 'Conversación sin título',
       preview: item.preview || '',
       lastModified: item.last_modified_time,
-      stepCount: Number(item.step_count) || 0
+      stepCount: Number(item.step_count) || 0,
+      archived: Boolean(meta[item.conversation_id]?.archived)
     }));
   } catch (error) {
     console.error('[AGy Bridge Error] listAgyConversations failed:', error.message);
@@ -281,9 +321,48 @@ export async function deleteAgyConversation(conversationId) {
     const cleanId = conversationId.replace(/[^a-zA-Z0-9-]/g, '');
     const query = `UPDATE conversation_summaries SET killed = 1 WHERE conversation_id = '${cleanId}';`;
     await execFileAsync('sqlite3', [AGY_DB_PATH, query]);
+
+    const meta = getConversationsMeta();
+    if (meta[cleanId]) {
+      delete meta[cleanId];
+      saveConversationsMeta(meta);
+    }
     return true;
   } catch (error) {
     console.error('[AGy Bridge Error] deleteAgyConversation failed:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Batch marks multiple conversations as killed/hidden in summaries database.
+ */
+export async function batchDeleteAgyConversations(ids = []) {
+  try {
+    if (!Array.isArray(ids) || ids.length === 0 || !fs.existsSync(AGY_DB_PATH)) return false;
+    const cleanIds = ids
+      .map((id) => (typeof id === 'string' ? id.replace(/[^a-zA-Z0-9-]/g, '') : ''))
+      .filter(Boolean);
+    if (cleanIds.length === 0) return false;
+
+    const inClause = cleanIds.map((id) => `'${id}'`).join(',');
+    const query = `UPDATE conversation_summaries SET killed = 1 WHERE conversation_id IN (${inClause});`;
+    await execFileAsync('sqlite3', [AGY_DB_PATH, query]);
+
+    // Also purge from conversations_meta if present
+    const meta = getConversationsMeta();
+    let changed = false;
+    for (const id of cleanIds) {
+      if (meta[id]) {
+        delete meta[id];
+        changed = true;
+      }
+    }
+    if (changed) saveConversationsMeta(meta);
+
+    return true;
+  } catch (error) {
+    console.error('[AGy Bridge Error] batchDeleteAgyConversations failed:', error.message);
     return false;
   }
 }
