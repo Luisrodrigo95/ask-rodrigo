@@ -19,7 +19,13 @@ import {
   FolderKanban,
   CheckSquare,
   Sparkles,
-  Filter
+  Filter,
+  Copy,
+  Check,
+  ExternalLink,
+  Download,
+  Radio,
+  Headphones
 } from 'lucide-react';
 
 function isSameDay(d1, d2) {
@@ -57,6 +63,8 @@ export function CalendarView({
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const [showModal, setShowModal] = useState(false);
+  const [showIcsModal, setShowIcsModal] = useState(false);
+  const [copiedIcs, setCopiedIcs] = useState(false);
   const [showSidebarMobile, setShowSidebarMobile] = useState(false);
 
   // Filter Sidebar States (Foundation for Layers & Groups)
@@ -65,6 +73,7 @@ export function CalendarView({
     server: true,
     consular: true,
     projects: true,
+    zaphosting: true,
     personal: true
   });
   const [activeGroups, setActiveGroups] = useState({
@@ -83,6 +92,16 @@ export function CalendarView({
   const [newTime, setNewTime] = useState('10:00');
   const [newDescription, setNewDescription] = useState('');
   const [newPriority, setNewPriority] = useState('medium');
+
+  const feedUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/ask-rodrigo/api/calendar.ics`
+    : 'https://therodrigo.com/ask-rodrigo/api/calendar.ics';
+
+  const handleCopyIcsUrl = () => {
+    navigator.clipboard?.writeText(feedUrl);
+    setCopiedIcs(true);
+    setTimeout(() => setCopiedIcs(false), 2500);
+  };
 
   const isAdmin = currentUser?.role === 'admin';
   const clt = t?.calendar || {
@@ -195,6 +214,7 @@ export function CalendarView({
       server: val,
       consular: val,
       projects: val,
+      zaphosting: val,
       personal: val
     });
   };
@@ -211,6 +231,7 @@ export function CalendarView({
       if ((cat.includes('servidor') || cat.includes('server')) && !activeLayers.server) return false;
       if ((cat.includes('cita') || cat.includes('appointment')) && !activeLayers.consular) return false;
       if ((cat.includes('proyecto') || cat.includes('work')) && !activeLayers.projects) return false;
+      if ((cat.includes('zap') || cat.includes('turno') || cat.includes('soporte') || cat.includes('guardia')) && !activeLayers.zaphosting) return false;
       if (cat.includes('personal') && !activeLayers.personal) return false;
       return true;
     });
@@ -269,6 +290,13 @@ export function CalendarView({
         badge: 'bg-accent/15 border-accent/30 text-accent',
         dot: 'bg-accent',
         icon: Code2
+      };
+    }
+    if (c.includes('zap') || c.includes('turno') || c.includes('soporte') || c.includes('guardia')) {
+      return {
+        badge: 'bg-amber-500/15 border-amber-500/30 text-amber-300',
+        dot: 'bg-amber-400',
+        icon: Headphones
       };
     }
     return {
@@ -372,6 +400,16 @@ export function CalendarView({
             )}
           </div>
 
+          {/* iCal Subscription Button */}
+          <button
+            onClick={() => setShowIcsModal(true)}
+            className="flex items-center gap-1.5 rounded-[10px] bg-sunken border border-edge/80 px-2.5 py-1.5 text-xs font-medium text-ink hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+            title="Suscripción iCal (.ics) & Google Calendar"
+          >
+            <Radio className="w-3.5 h-3.5 text-accent animate-pulse" />
+            <span className="hidden sm:inline">iCal Feed</span>
+          </button>
+
           {/* New Event Button (Admin Only) */}
           {isAdmin ? (
             <button
@@ -462,6 +500,17 @@ export function CalendarView({
               />
               <Code2 className="w-3.5 h-3.5 text-accent shrink-0" />
               <span className="truncate">Projects & Sprints</span>
+            </label>
+
+            <label className="flex cursor-pointer items-center gap-2 py-1 text-ink/80 hover:text-ink">
+              <input
+                type="checkbox"
+                checked={activeLayers.zaphosting}
+                onChange={(e) => setActiveLayers((p) => ({ ...p, zaphosting: e.target.checked }))}
+                className="rounded accent-amber-500"
+              />
+              <Headphones className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="truncate">Turnos ZAP-Hosting (Soporte)</span>
             </label>
 
             <label className="flex cursor-pointer items-center gap-2 py-1 text-ink/80 hover:text-ink">
@@ -885,6 +934,78 @@ export function CalendarView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* 4. iCal Subscription & Google Calendar Modal */}
+      {showIcsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="w-full max-w-lg rounded-[18px] bg-panel border border-edge shadow-v2-md p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-edge/60 pb-3">
+              <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+                <Radio className="w-4 h-4 text-accent" />
+                <span>Suscripción iCal (.ics) & Google Calendar</span>
+              </h2>
+              <button
+                onClick={() => setShowIcsModal(false)}
+                className="text-muted hover:text-ink p-1 rounded-md cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-muted leading-relaxed">
+              Sincroniza en tiempo real los mantenimientos de servidores, turnos de soporte en ZAP-Hosting, sprints de proyectos y citas consulares directamente en Google Calendar, Apple Calendar o Outlook.
+            </p>
+
+            {/* URL Box */}
+            <div className="p-3 rounded-[12px] bg-sunken border border-edge/70 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-muted uppercase tracking-wider">
+                <span>URL pública del Feed iCal</span>
+                <span className="text-emerald-400 font-mono text-[10px]">RFC 5545</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 p-1.5 rounded-[8px] bg-panel border border-edge/60">
+                <span className="font-mono text-xs text-accent truncate select-all px-1">
+                  {feedUrl}
+                </span>
+                <button
+                  onClick={handleCopyIcsUrl}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-accent/15 text-accent hover:bg-accent hover:text-white transition-all text-xs font-medium shrink-0 cursor-pointer"
+                >
+                  {copiedIcs ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedIcs ? '¡Copiado!' : 'Copiar'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Direct Action Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <a
+                href={`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(feedUrl)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 p-2.5 rounded-[10px] bg-panel border border-edge hover:border-accent text-xs font-semibold text-ink hover:text-accent transition-all shadow-v2-sm"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-accent" />
+                <span>Abrir en Google Calendar</span>
+              </a>
+
+              <a
+                href="/ask-rodrigo/api/calendar.ics"
+                download="rodrigo-calendar.ics"
+                className="flex items-center justify-center gap-2 p-2.5 rounded-[10px] bg-panel border border-edge hover:border-accent text-xs font-semibold text-ink hover:text-accent transition-all shadow-v2-sm"
+              >
+                <Download className="w-3.5 h-3.5 text-teal-400" />
+                <span>Descargar archivo .ics</span>
+              </a>
+            </div>
+
+            <div className="pt-2 border-t border-edge/60 text-[11px] text-muted space-y-1">
+              <p className="font-semibold text-ink">💡 Cómo añadir a Google Calendar en 3 pasos:</p>
+              <p>1. Abre <span className="text-accent font-medium">Google Calendar</span> en tu navegador.</p>
+              <p>2. En el panel izquierdo junto a <em>"Otros calendarios"</em>, pulsa <strong>+</strong> y elige <strong>"Desde URL"</strong>.</p>
+              <p>3. Pega la URL del feed y pulsa <em>"Añadir calendario"</em>. Los eventos se actualizarán automáticamente.</p>
+            </div>
           </div>
         </div>
       )}

@@ -4,10 +4,11 @@ module.exports = {
       name: "ask-rodrigo",
       script: "server/src/server.js",
       cwd: "/var/www/ask-rodrigo",
+      exec_mode: "fork",
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: "350M",
+      max_memory_restart: "1500M",
       env: {
         NODE_ENV: "production",
         PORT: 3005,

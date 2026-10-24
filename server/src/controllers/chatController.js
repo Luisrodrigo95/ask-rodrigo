@@ -10,7 +10,8 @@ import { getSystemMetrics } from '../services/metricsService.js';
 import {
   getCalendarEvents,
   addCalendarEvent,
-  deleteCalendarEvent
+  deleteCalendarEvent,
+  generateICalFeed
 } from '../services/calendarService.js';
 
 /**
@@ -255,6 +256,19 @@ export function calendarDeleteHandler(req, res) {
   const ok = deleteCalendarEvent(id);
   return res.json({ ok });
 }
+
+export function calendarIcsHandler(req, res) {
+  try {
+    const icsContent = generateICalFeed();
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename="rodrigo-calendar.ics"');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.send(icsContent);
+  } catch (err) {
+    return res.status(500).send('Error generating iCalendar feed: ' + err.message);
+  }
+}
+
 
 /**
  * Suggestions handler with the 6 priority questions requested by user.

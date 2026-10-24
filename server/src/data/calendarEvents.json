@@ -34,5 +34,14 @@
     "time": "17:00",
     "description": "Optimización de consultas de precios y catálogo de productos.",
     "priority": "medium"
+  },
+  {
+    "id": "evt_4",
+    "title": "Guardia de Soporte Técnico L2 ZAP-Hosting",
+    "category": "ZAP-Hosting (Soporte)",
+    "date": "2026-10-28",
+    "time": "15:00",
+    "description": "Monitoreo y resolución de tickets de infraestructura, redes y virtualización.",
+    "priority": "high"
   }
 ]

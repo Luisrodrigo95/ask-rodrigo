@@ -170,9 +170,11 @@ export function App() {
       setConversations(list);
 
       const savedConv = localStorage.getItem('ask_rodrigo_active_conv');
-      if (autoSelect && list.length > 0 && !activeConversationId) {
-        const targetId = list.find((c) => c.id === savedConv) ? savedConv : list[0].id;
-        handleSelectConversation(targetId);
+      if (autoSelect && list.length > 0 && !activeConversationId && savedConv) {
+        const found = list.find((c) => c.id === savedConv);
+        if (found) {
+          handleSelectConversation(savedConv);
+        }
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);

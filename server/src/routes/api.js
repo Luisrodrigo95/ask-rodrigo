@@ -9,6 +9,7 @@ import {
   calendarGetHandler,
   calendarPostHandler,
   calendarDeleteHandler,
+  calendarIcsHandler,
   suggestionsHandler,
   profileHandler,
   healthHandler,
@@ -58,6 +59,8 @@ router.get('/subagents', requireAdmin, subagentsHandler);
 
 // --- Calendar Endpoints (Read: All, Write: Admin Only) ---
 router.get('/calendar', calendarGetHandler);
+router.get('/calendar.ics', calendarIcsHandler);
+router.get('/calendar/feed.ics', calendarIcsHandler);
 router.post('/calendar', requireAdmin, calendarPostHandler);
 router.delete('/calendar/:id', requireAdmin, calendarDeleteHandler);
 
