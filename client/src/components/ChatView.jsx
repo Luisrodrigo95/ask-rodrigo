@@ -140,6 +140,7 @@ export function ChatView({
   onChangeModel,
   thinkingEffort = 'high',
   onChangeThinkingEffort,
+  language = 'en',
   t
 }) {
   const [inputText, setInputText] = useState('');
@@ -392,30 +393,22 @@ export function ChatView({
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-paper relative overflow-hidden select-text">
+    <div className="flex-1 flex flex-col h-full min-h-0 bg-paper relative overflow-hidden select-text">
       {/* Ask Marvin Top Bar: Greeting & Context Workspace Pills */}
-      <div className="px-4 py-3 border-b border-edge bg-panel/60 backdrop-blur-md flex flex-wrap items-center justify-between gap-3">
-        {/* Left: Drawer Toggle Button (Mobile/Tablet) + Greeting & Status */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          {onToggleDrawer && (
-            <button
-              onClick={onToggleDrawer}
-              className="p-1.5 rounded-[8px] bg-sunken border border-edge text-muted hover:text-ink md:hidden cursor-pointer shrink-0 transition-colors shadow-v2-sm"
-              title="Historial de conversaciones"
-              aria-label="Abrir historial de conversaciones"
-            >
-              <MessageSquare className="w-4 h-4 text-accent" />
-            </button>
-          )}
+      <div className="px-3 py-2 sm:px-4 sm:py-2.5 border-b border-edge bg-panel/60 backdrop-blur-md flex items-center justify-between gap-2 shrink-0">
+        {/* Left: Greeting & Status */}
+        <div className="flex items-center gap-2 min-w-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-[15px] sm:text-[16px] font-semibold text-ink leading-none truncate">
-                {isAdmin ? 'Hello Rodrigo.' : 'Hello Guest.'}
+              <h1 className="text-[14px] sm:text-[16px] font-semibold text-ink leading-none truncate">
+                {isAdmin
+                  ? (language === 'es' ? 'Hola Rodrigo.' : 'Hello Rodrigo.')
+                  : (language === 'es' ? 'Hola Invitado.' : 'Hello Guest.')}
               </h1>
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             </div>
-            <p className="text-[11px] sm:text-[11.5px] text-muted mt-1 flex items-center gap-1.5 sm:gap-2 font-mono truncate">
-              <span>0 chats waiting</span>
+            <p className="text-[10.5px] sm:text-[11.5px] text-muted mt-0.5 sm:mt-1 flex items-center gap-1.5 sm:gap-2 font-mono truncate">
+              <span>{messages.length} {ct.chatsWaiting || (language === 'es' ? 'mensajes' : 'messages')}</span>
               <span>·</span>
               <span className="text-accent font-medium">
                 {isAdmin ? ct.engineAdmin : ct.engineGuest}
@@ -423,8 +416,8 @@ export function ChatView({
               {isAdmin && (
                 <>
                   <span>·</span>
-                  <span className="text-slate-400 truncate max-w-[120px] sm:max-w-xs">
-                    {conversationId ? `Session: ${conversationId.slice(0, 8)}...` : 'New turn'}
+                  <span className="text-slate-400 truncate max-w-[90px] sm:max-w-xs">
+                    {conversationId ? `${ct.sessionPrefix || 'Session:'} ${conversationId.slice(0, 8)}...` : (ct.newTurn || 'New turn')}
                   </span>
                 </>
               )}
@@ -563,10 +556,10 @@ export function ChatView({
 
                   <p className="text-[10.5px] text-muted leading-tight">
                     {thinkingEffort === 'high'
-                      ? 'Pensamiento profundo paso a paso para análisis exhaustivo y arquitectura.'
+                      ? (ct.thinkingHighDesc || 'Deep step-by-step reasoning for architecture and complex tasks.')
                       : thinkingEffort === 'medium'
-                        ? 'Pensamiento equilibrado con buena velocidad y análisis técnico.'
-                        : 'Mínima latencia con respuestas ágiles y directas.'}
+                        ? (ct.thinkingMedDesc || 'Balanced reasoning with solid speed and technical depth.')
+                        : (ct.thinkingLowDesc || 'Minimal latency with fast, direct answers.')}
                   </p>
                 </div>
               </div>
@@ -648,7 +641,7 @@ export function ChatView({
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-4 [scrollbar-width:thin] min-w-0 w-full"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-4 [scrollbar-width:thin] min-w-0 w-full"
       >
         {messages.length === 0 && !streamingReply ? (
           <div className="max-w-2xl mx-auto py-10 text-center space-y-4">
@@ -940,9 +933,9 @@ export function ChatView({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Box Footer (Modern Card Style with dynamic auto-height & iPhone safe-area padding) */}
-      <div className="p-2.5 sm:p-4 pb-[max(0.65rem,env(safe-area-inset-bottom,0px))] border-t border-edge bg-paper/95 backdrop-blur-md shrink-0">
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative flex flex-col gap-2">
+      {/* Input Box Footer (Modern Card Style with dynamic auto-height & iPhone-safe padding) */}
+      <div className="p-2 sm:p-3 border-t border-edge bg-paper/95 backdrop-blur-md shrink-0 md:pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative flex flex-col gap-1.5 sm:gap-2">
           {/* Attached Files & Upload Status Badges */}
           {(attachedFiles.length > 0 || isUploading || uploadError) && (
             <div className="flex flex-wrap items-center gap-2 px-1">
@@ -1000,7 +993,7 @@ export function ChatView({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`relative flex flex-col rounded-[20px] bg-panel border shadow-v2-md transition-all p-2 sm:p-2.5 ${
+            className={`relative flex flex-col rounded-[18px] sm:rounded-[20px] bg-panel border shadow-v2-md transition-all p-1.5 sm:p-2.5 ${
               isDragging
                 ? 'border-accent bg-accent/10 ring-2 ring-accent/30'
                 : 'border-edge focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/20'
@@ -1008,13 +1001,13 @@ export function ChatView({
           >
             {/* Visual Dropzone Indicator */}
             {isDragging && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[20px] bg-panel/95 border-2 border-dashed border-accent backdrop-blur-xs text-accent font-medium text-xs pointer-events-none gap-2">
+              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[18px] sm:rounded-[20px] bg-panel/95 border-2 border-dashed border-accent backdrop-blur-xs text-accent font-medium text-xs pointer-events-none gap-2">
                 <UploadCloud className="w-5 h-5 animate-bounce" />
-                <span>Suelta aquí tu imagen o archivo para adjuntarlo</span>
+                <span>{ct.dropzonePrompt || (language === 'es' ? 'Suelta aquí tu imagen o archivo para adjuntarlo' : 'Drop your image or file here to attach')}</span>
               </div>
             )}
 
-            {/* Input Textarea (Auto-resizing, 16px minimum font size on mobile to stop iOS auto-zoom) */}
+            {/* Input Textarea (Auto-resizing, 16px font size on mobile to stop iOS auto-zoom) */}
             <textarea
               ref={inputRef}
               value={inputText}
@@ -1023,17 +1016,17 @@ export function ChatView({
               onPaste={handlePaste}
               placeholder={
                 isGenerating
-                  ? 'Rodrigo está respondiendo... Puedes redactar tu siguiente mensaje aquí.'
+                  ? (ct.generatingPlaceholder || (language === 'es' ? 'Rodrigo está respondiendo... Puedes redactar tu siguiente mensaje aquí.' : 'Rodrigo is responding... You can draft your next message here.'))
                   : isAdmin
                     ? `[${activeWorkspace.toUpperCase()}] ${ct.placeholderAdmin}`
                     : ct.placeholderGuest
               }
               rows="1"
-              className="w-full bg-transparent border-none text-[16px] sm:text-sm text-ink placeholder-muted/60 focus:outline-none focus:ring-0 resize-none px-2 sm:px-3 pt-1.5 pb-2 min-h-[46px] max-h-[220px] [scrollbar-width:thin] leading-relaxed"
+              className="w-full bg-transparent border-none text-[16px] sm:text-sm text-ink placeholder-muted/60 focus:outline-none focus:ring-0 resize-none px-2 sm:px-3 pt-1 pb-1.5 min-h-[42px] max-h-[160px] sm:max-h-[220px] [scrollbar-width:thin] leading-relaxed"
             />
 
             {/* Box Action Toolbar (bottom row) */}
-            <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-edge/40 px-1">
+            <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-edge/40 px-0.5 sm:px-1">
               {/* Left Actions: File attachment & Workspace pill & Clear button & Quick Thinking Toggle */}
               <div className="flex items-center gap-1.5 min-w-0">
                 {isAdmin && (
@@ -1053,7 +1046,7 @@ export function ChatView({
                       className="flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] text-muted hover:text-accent hover:bg-sunken transition-all cursor-pointer text-xs"
                     >
                       <Paperclip className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline font-mono text-[11px]">Adjuntar</span>
+                      <span className="hidden sm:inline font-mono text-[11px]">{ct.attach || (language === 'es' ? 'Adjuntar' : 'Attach')}</span>
                     </button>
                   </>
                 )}
@@ -1073,7 +1066,7 @@ export function ChatView({
                       ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25 shadow-xs'
                       : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 shadow-xs'
                   }`}
-                  title={`Calidad de pensamiento: ${thinkingEffort.toUpperCase()} (Clic para alternar Low / Medium / High)`}
+                  title={`${ct.thinkingTitle || 'Thinking Effort:'} ${thinkingEffort.toUpperCase()} (${ct.thinkingToggleTooltip || (language === 'es' ? 'Clic para alternar Low / Medium / High' : 'Click to cycle Low / Medium / High')})`}
                 >
                   <span>
                     {thinkingEffort === 'high' ? '🧠 High' : thinkingEffort === 'medium' ? '⚡ Med' : '🟢 Low'}
@@ -1092,12 +1085,12 @@ export function ChatView({
                     type="button"
                     onClick={() => {
                       setInputText('');
-                      if (inputRef.current) inputRef.current.style.height = '46px';
+                      if (inputRef.current) inputRef.current.style.height = '42px';
                     }}
                     className="text-muted hover:text-ink text-[11px] font-mono px-1.5 py-1 rounded hover:bg-sunken cursor-pointer transition-colors"
-                    title="Limpiar texto"
+                    title={ct.clearTitle || (language === 'es' ? 'Limpiar texto' : 'Clear text')}
                   >
-                    Limpiar
+                    {ct.clear || (language === 'es' ? 'Limpiar' : 'Clear')}
                   </button>
                 )}
               </div>
@@ -1105,7 +1098,7 @@ export function ChatView({
               {/* Right Actions: Desktop Keyboard Hint & Send Button */}
               <div className="flex items-center gap-2">
                 <span className="hidden sm:inline-block text-[10.5px] font-mono text-muted/60 select-none">
-                  Shift + ↵ salto de línea
+                  Shift + ↵ {ct.lineBreakHint || (language === 'es' ? 'salto de línea' : 'line break')}
                 </span>
 
                 <button
@@ -1113,12 +1106,12 @@ export function ChatView({
                   disabled={(!inputText.trim() && attachedFiles.length === 0) || isUploading || isGenerating}
                   title={
                     isGenerating
-                      ? 'Rodrigo está procesando una respuesta...'
+                      ? (ct.waitingResponse || (language === 'es' ? 'Rodrigo está procesando una respuesta...' : 'Rodrigo is processing a response...'))
                       : (!inputText.trim() && attachedFiles.length === 0)
-                        ? 'Escribe un mensaje para enviar'
-                        : 'Enviar mensaje (Enter)'
+                        ? (ct.placeholderType || (language === 'es' ? 'Escribe un mensaje para enviar' : 'Type a message to send'))
+                        : (ct.sendTitle || (language === 'es' ? 'Enviar mensaje (Enter)' : 'Send message (Enter)'))
                   }
-                  className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-[12px] font-medium text-xs transition-all shrink-0 cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[12px] font-medium text-xs transition-all shrink-0 cursor-pointer ${
                     isGenerating
                       ? 'bg-accent/20 border border-accent/40 text-accent cursor-wait'
                       : (inputText.trim() || attachedFiles.length > 0) && !isUploading
@@ -1129,12 +1122,12 @@ export function ChatView({
                   {isGenerating ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span className="hidden sm:inline">Generando</span>
+                      <span className="hidden sm:inline">{ct.generatingBtn || (language === 'es' ? 'Generando' : 'Generating')}</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Enviar</span>
+                      <span className="hidden sm:inline">{ct.send || (language === 'es' ? 'Enviar' : 'Send')}</span>
                     </>
                   )}
                 </button>

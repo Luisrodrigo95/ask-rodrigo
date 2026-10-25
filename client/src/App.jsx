@@ -776,7 +776,7 @@ export function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-paper text-ink overflow-hidden select-none">
+    <div className="flex h-[100dvh] h-full w-full max-w-[100vw] bg-paper text-ink overflow-hidden select-none">
       {/* 1. Primary Left Navigation Rail (224px or 64px collapsed) */}
       <PrimaryRail
         activeTab={activeTab}
@@ -795,7 +795,7 @@ export function App() {
       />
 
       {/* 2. Main Workstation Container */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0 min-h-0">
         {/* Mobile Header (Visible only on screens below md) */}
         <div className="md:hidden flex items-center justify-between px-3.5 py-2.5 border-b border-edge bg-panel/95 backdrop-blur-md select-none shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -810,45 +810,34 @@ export function App() {
               <span className="text-[14px] font-semibold text-ink leading-tight truncate">Ask Rodrigo</span>
               <span className="text-[10px] font-mono text-muted flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                {currentUser?.role === 'admin' ? 'Admin' : 'Guest'}
+                {currentUser?.role === 'admin' ? 'Admin' : (language === 'es' ? 'Invitado' : 'Guest')}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
             {activeTab === 'chat' && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsDrawerOpen((prev) => !prev)}
-                  className={`p-2 rounded-xl border transition-all cursor-pointer ${
-                    isDrawerOpen
-                      ? 'bg-accent/15 border-accent text-accent'
-                      : 'bg-sunken border-edge text-muted hover:text-ink'
-                  }`}
-                  title={t.rail?.chats || 'Historial de chats'}
-                  aria-label="Historial de chats"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleNewChat}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-accent text-white font-medium text-xs shadow-sm hover:bg-accent/90 transition-all active:scale-95 cursor-pointer"
-                  title={t.sidebar?.newChat || 'Nuevo chat'}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-semibold">{t.sidebar?.newChatShort || 'Nuevo'}</span>
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                  isDrawerOpen
+                    ? 'bg-accent/15 border-accent text-accent shadow-xs'
+                    : 'bg-sunken border-edge text-muted hover:text-ink'
+                }`}
+                title={t.rail?.chats || (language === 'es' ? 'Chats' : 'Chats')}
+                aria-label="Abrir chats"
+              >
+                <MessageSquare className="w-4 h-4 text-accent" />
+                <span className="text-xs font-medium text-ink">{t.rail?.chats || 'Chats'}</span>
+              </button>
             )}
 
             <button
               type="button"
               onClick={() => (currentUser?.role === 'admin' ? setIsProfileOpen(true) : setIsLoginOpen(true))}
               className="p-2 rounded-xl bg-sunken border border-edge text-muted hover:text-ink transition-all active:scale-95 cursor-pointer"
-              title={currentUser?.role === 'admin' ? 'Perfil' : 'Iniciar Sesión'}
+              title={currentUser?.role === 'admin' ? (t.header?.profileBtn || 'Perfil') : (t.sidebar?.loginBtn || 'Iniciar Sesión')}
             >
               <User className="w-4 h-4" />
             </button>
@@ -858,7 +847,7 @@ export function App() {
                 type="button"
                 onClick={handleLogout}
                 className="p-2 rounded-xl bg-sunken border border-edge text-muted hover:text-rose-400 hover:border-rose-500/40 transition-all active:scale-95 cursor-pointer"
-                title={t.rail?.logout || 'Cerrar sesión'}
+                title={t.rail?.logout || (language === 'es' ? 'Cerrar sesión' : 'Sign Out')}
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -867,7 +856,7 @@ export function App() {
         </div>
 
         {/* Content Pane */}
-        <div className="flex-1 flex overflow-hidden min-w-0">
+        <div className="flex-1 flex overflow-hidden min-w-0 min-h-0">
           {activeTab === 'chat' ? (
             <>
               {/* Dual-Sidebar Drawer: Date-grouped sessions */}
@@ -914,6 +903,7 @@ export function App() {
                 onToggleDrawer={() => setIsDrawerOpen((prev) => !prev)}
                 isSubagentsOpen={isSubagentsOpen}
                 onToggleSubagents={() => setIsSubagentsOpen((prev) => !prev)}
+                language={language}
                 t={t}
               />
 

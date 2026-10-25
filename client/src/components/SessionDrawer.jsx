@@ -258,8 +258,8 @@ export const SessionDrawer = React.memo(function SessionDrawer({
                     ? 'bg-accent text-white shadow-v2-sm'
                     : 'bg-sunken border border-edge text-muted hover:text-ink hover:border-accent/40'
                 }`}
-                title={isSelectMode ? (td.cancel || 'Cancelar selección múltiple') : (td.select || 'Seleccionar varios chats')}
-                aria-label="Seleccionar varios chats"
+                title={isSelectMode ? (td.cancelSelect || 'Cancel multi-select') : (td.batchSelectTitle || 'Select multiple chats')}
+                aria-label={td.batchSelectTitle || 'Select multiple chats'}
               >
                 <ListChecks className="w-3.5 h-3.5" />
               </button>
@@ -276,8 +276,8 @@ export const SessionDrawer = React.memo(function SessionDrawer({
               <button
                 onClick={onCloseDrawer}
                 className="p-1.5 rounded-[8px] text-muted hover:text-ink hover:bg-sunken md:hidden cursor-pointer transition-colors"
-                title="Cerrar"
-                aria-label="Cerrar historial"
+                title={td.closeDrawer || 'Close'}
+                aria-label={td.closeDrawer || 'Close'}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -334,10 +334,10 @@ export const SessionDrawer = React.memo(function SessionDrawer({
                 onClick={handleBatchDelete}
                 disabled={selectedIds.size === 0 || isDeleting}
                 className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[8px] bg-rose-500/10 border border-rose-500/20 text-xs font-medium text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-v2-sm"
-                title="Eliminar seleccionados"
+                title={td.deleteSelected || 'Delete selected'}
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{td.deleteSelected || 'Eliminar'}</span>
+                <span>{td.deleteSelected || 'Delete'}</span>
               </button>
 
               <button
@@ -513,7 +513,7 @@ export const SessionDrawer = React.memo(function SessionDrawer({
                               {generatingMap?.[conv.id] && (
                                 <span className="flex items-center gap-1 text-[9.5px] font-semibold text-accent bg-accent/15 px-1.5 py-0.2 rounded-full border border-accent/30 animate-pulse shrink-0">
                                   <Sparkles className="w-2.5 h-2.5 animate-spin" />
-                                  <span className="hidden sm:inline">Ejecutando...</span>
+                                  <span className="hidden sm:inline">{td.running || (t.chat?.generatingBtn || 'Running...')}</span>
                                 </span>
                               )}
                             </div>
