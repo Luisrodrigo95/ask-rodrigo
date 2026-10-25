@@ -31,6 +31,7 @@ import {
   ExternalLink,
   Key,
   Copy,
+  Clipboard,
   Layers,
   Sparkles
 } from 'lucide-react';
@@ -187,6 +188,20 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
     setCopiedKey(true);
     showToast('Clave de acceso copiada al portapapeles: RodrigoDev2026!', 'success');
     setTimeout(() => setCopiedKey(false), 2500);
+  };
+
+  const handleSyncClipboard = async () => {
+    try {
+      if (!navigator.clipboard?.readText) {
+        showToast('El navegador bloqueó la lectura del portapapeles. Ábrelo en Nueva Pestaña o verifica los permisos.', 'error');
+        return;
+      }
+      const text = await navigator.clipboard.readText();
+      const snippet = text ? (text.length > 25 ? text.slice(0, 25) + '...' : text) : '(vacío)';
+      showToast(`Portapapeles sincronizado con tu PC: "${snippet}". Ya puedes pegar en la terminal con Ctrl+V o Clic derecho.`, 'success');
+    } catch (err) {
+      showToast('Permiso bloqueado por el navegador. Haz clic en el ícono de ajustes/candado en la barra de URL y pon Portapapeles en "Permitir".', 'error');
+    }
   };
 
   // 1. Load Projects on Mount
@@ -601,6 +616,16 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
                 <span>{copiedKey ? '¡Copiada!' : 'Clave: RodrigoDev2026!'}</span>
               </button>
 
+              {/* Sincronizar Portapapeles */}
+              <button
+                onClick={handleSyncClipboard}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-xs font-medium bg-sunken border border-edge text-ink/90 hover:text-emerald-400 hover:border-emerald-500/40 transition-all cursor-pointer shadow-v2-sm"
+                title="Sincronizar portapapeles de tu PC con VS Code (activa permisos si están bloqueados)"
+              >
+                <Clipboard className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden md:inline">Sincronizar Portapapeles</span>
+              </button>
+
               {/* Open in Full Browser Tab */}
               <a
                 href={vsCodeIframeUrl}
@@ -755,7 +780,7 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
             src={vsCodeIframeUrl}
             className="w-full h-full border-none"
             title="Visual Studio Code Online Suite"
-            allow="clipboard-read *; clipboard-write *; clipboard-read; clipboard-write; fullscreen"
+            allow="clipboard-read; clipboard-write; fullscreen"
             tabIndex={0}
           />
 
