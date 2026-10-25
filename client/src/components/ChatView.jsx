@@ -20,7 +20,8 @@ import {
   FolderCode,
   Bot,
   PanelRight,
-  PanelRightClose
+  PanelRightClose,
+  Image as ImageIcon
 } from 'lucide-react';
 import { marked } from 'marked';
 import { uploadAdminFile } from '../services/api.js';
@@ -49,6 +50,56 @@ function renderMarkdown(content) {
   }
 }
 
+function renderUserMessage(text) {
+  if (!text) return null;
+  const imgRegex = /(?:🖼️|📎)\s*\[(?:Imagen|Archivo) adjunto en el servidor\]:\s*(\/home\/bombi\/uploads\/([^\s\n]+\.(?:png|jpe?g|webp|gif|svg|bmp|ico)))/gi;
+  
+  const images = [];
+  let match;
+  while ((match = imgRegex.exec(text)) !== null) {
+    images.push({ path: match[1], filename: match[2] });
+  }
+
+  let cleanText = text;
+  images.forEach((img) => {
+    cleanText = cleanText.replace(
+      new RegExp(`(?:🖼️|📎)\\s*\\[(?:Imagen|Archivo) adjunto en el servidor\\]:\\s*${img.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\\n]*\\n(?:-[^\\n]*\\n)*`, 'g'),
+      ''
+    );
+  });
+  cleanText = cleanText.trim();
+
+  return (
+    <div className="space-y-2.5">
+      {images.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {images.map((img, i) => (
+            <a
+              key={i}
+              href={`/api/upload/raw/${img.filename}`}
+              target="_blank"
+              rel="noreferrer"
+              className="group/img relative block overflow-hidden rounded-xl border border-white/20 bg-black/30 hover:border-white/50 transition-all shadow-md"
+              title="Click para abrir imagen en tamaño completo"
+            >
+              <img
+                src={`/api/upload/raw/${img.filename}`}
+                alt={img.filename}
+                className="max-h-52 max-w-xs object-cover rounded-xl transition-transform duration-200 group-hover/img:scale-[1.03]"
+                loading="lazy"
+              />
+              <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-black/75 text-white/90 backdrop-blur-xs">
+                {img.filename.split('.').pop().toUpperCase()}
+              </span>
+            </a>
+          ))}
+        </div>
+      )}
+      {cleanText && <div className="whitespace-pre-wrap">{cleanText}</div>}
+    </div>
+  );
+}
+
 export function ChatView({
   conversationId,
   messages,
@@ -71,6 +122,7 @@ export function ChatView({
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -103,9 +155,18 @@ export function ChatView({
     return () => window.removeEventListener('insert_chat_prompt', handleInsertPrompt);
   }, []);
 
-  const handleFileSelect = async (e) => {
-    const file = e.target.files?.[0];
+  const uploadSingleFile = async (file) => {
     if (!file) return;
+
+    const isImg = file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|svg|bmp|ico)$/i.test(file.name);
+    let localPreviewUrl = null;
+    if (isImg) {
+      try {
+        localPreviewUrl = URL.createObjectURL(file);
+      } catch {
+        // ignore
+      }
+    }
 
     setIsUploading(true);
     setUploadError('');
@@ -115,9 +176,12 @@ export function ChatView({
         ...prev,
         {
           filename: res.filename,
-          originalName: res.originalName,
-          size: res.size,
-          path: res.path
+          originalName: res.originalName || file.name,
+          size: res.size || file.size,
+          path: res.path,
+          isImage: res.isImage ?? isImg,
+          url: res.url || `/api/upload/raw/${res.filename}`,
+          previewUrl: localPreviewUrl
         }
       ]);
     } catch (err) {
@@ -126,6 +190,58 @@ export function ChatView({
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadSingleFile(file);
+    }
+  };
+
+  const handlePaste = (e) => {
+    if (!isAdmin) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+        const ext = item.type.split('/')[1] || 'png';
+        const safeExt = ext.replace(/[^a-z0-9]/gi, '') || 'png';
+        const pastedName = `pasted-image-${Date.now()}.${safeExt}`;
+        const renamedFile = new File([file], pastedName, { type: item.type });
+        uploadSingleFile(renamedFile);
+        break;
+      }
+    }
+  };
+
+  const handleDragOver = (e) => {
+    if (!isAdmin) return;
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    if (!isAdmin) return;
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    if (!isAdmin) return;
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        uploadSingleFile(files[i]);
+      }
     }
   };
 
@@ -139,14 +255,19 @@ export function ChatView({
 
     let finalMessage = inputText.trim();
     if (attachedFiles.length > 0) {
-      const fileReferences = attachedFiles.map((f) => 
-        `📎 [Archivo adjunto en el servidor]: ${f.path}\n- Nombre original: ${f.originalName} (${formatFileSize(f.size)})`
-      ).join('\n\n');
+      const fileReferences = attachedFiles.map((f) => {
+        const isImg = f.isImage || /\.(jpe?g|png|webp|gif|svg)$/i.test(f.originalName || f.path || '');
+        if (isImg) {
+          return `🖼️ [Imagen adjunta en el servidor]: ${f.path}\n- Nombre original: ${f.originalName} (${formatFileSize(f.size)})\n- Instrucción visual: Utiliza la herramienta view_file para inspeccionar y analizar esta imagen binaria directamente.`;
+        }
+        return `📎 [Archivo adjunto en el servidor]: ${f.path}\n- Nombre original: ${f.originalName} (${formatFileSize(f.size)})`;
+      }).join('\n\n');
 
       if (finalMessage) {
         finalMessage = `${fileReferences}\n\n${finalMessage}`;
       } else {
-        finalMessage = `${fileReferences}\n\nPor favor lee el archivo adjunto usando tus herramientas de lectura de archivos e indícame tu análisis o realiza la acción necesaria.`;
+        const hasImg = attachedFiles.some((f) => f.isImage || /\.(jpe?g|png|webp|gif|svg)$/i.test(f.originalName || f.path || ''));
+        finalMessage = `${fileReferences}\n\nPor favor ${hasImg ? 'inspecciona la imagen adjunta con view_file y analiza su contenido' : 'lee el archivo adjunto usando tus herramientas de lectura de archivos e indícame tu análisis o realiza la acción necesaria'}.`;
       }
     }
 
@@ -328,7 +449,7 @@ export function ChatView({
                   }`}
                 >
                   {isUser ? (
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    renderUserMessage(msg.content)
                   ) : (
                     <div>
                       <div
@@ -430,8 +551,16 @@ export function ChatView({
                   key={idx}
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-[10px] bg-panel border border-accent/40 text-xs text-ink shadow-v2-sm animate-fadeIn"
                 >
-                  <FileText className="w-3.5 h-3.5 text-accent shrink-0" />
-                  <span className="font-mono text-[11px] max-w-[200px] sm:max-w-[300px] truncate font-medium">
+                  {f.isImage && (f.previewUrl || f.url) ? (
+                    <img
+                      src={f.previewUrl || f.url}
+                      alt={f.originalName}
+                      className="w-7 h-7 object-cover rounded-md border border-edge shrink-0 shadow-sm"
+                    />
+                  ) : (
+                    <FileText className="w-3.5 h-3.5 text-accent shrink-0" />
+                  )}
+                  <span className="font-mono text-[11px] max-w-[180px] sm:max-w-[260px] truncate font-medium">
                     {f.originalName}
                   </span>
                   <span className="text-[10px] text-accent font-mono">
@@ -462,7 +591,24 @@ export function ChatView({
             </div>
           )}
 
-          <div className="relative flex items-center rounded-[20px] bg-panel border border-edge shadow-v2-md focus-within:border-accent focus-within:ring-1 focus-within:ring-accent transition-all p-1.5">
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`relative flex items-center rounded-[20px] bg-panel border shadow-v2-md focus-within:border-accent focus-within:ring-1 focus-within:ring-accent transition-all p-1.5 ${
+              isDragging
+                ? 'border-accent bg-accent/10 ring-2 ring-accent/30'
+                : 'border-edge'
+            }`}
+          >
+            {/* Visual Dropzone Indicator */}
+            {isDragging && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[20px] bg-paper/90 backdrop-blur-xs text-accent font-medium text-xs pointer-events-none gap-2">
+                <UploadCloud className="w-4 h-4 animate-bounce" />
+                <span>Suelta aquí tu imagen o archivo para adjuntarlo</span>
+              </div>
+            )}
+
             {/* Admin File Upload Button */}
             {isAdmin && (
               <>
@@ -471,7 +617,7 @@ export function ChatView({
                   ref={fileInputRef}
                   onChange={handleFileSelect}
                   className="hidden"
-                  accept=".txt,.log,.md,.markdown,.js,.mjs,.cjs,.ts,.jsx,.tsx,.py,.json,.sh,.bash,.zsh,.yml,.yaml,.css,.scss,.html,.sql,.env,.csv,.tsv,.xml,.conf,.ini,.cfg,.patch,.diff,.java,.c,.cpp,.h,.hpp,.rs,.go,.php,.rb,.toml"
+                  accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.svg,.bmp,.ico,.txt,.log,.md,.markdown,.js,.mjs,.cjs,.ts,.jsx,.tsx,.py,.json,.sh,.bash,.zsh,.yml,.yaml,.css,.scss,.html,.sql,.env,.csv,.tsv,.xml,.conf,.ini,.cfg,.patch,.diff,.java,.c,.cpp,.h,.hpp,.rs,.go,.php,.rb,.toml"
                 />
                 <button
                   type="button"
@@ -491,6 +637,7 @@ export function ChatView({
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               disabled={isGenerating}
               placeholder={
                 isGenerating

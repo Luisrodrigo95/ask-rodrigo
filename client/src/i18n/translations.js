@@ -136,11 +136,11 @@ export const translations = {
       copied: "Copied!",
       listen: "Listen to response",
       errorPrefix: "Error processing reply",
-      attachFile: "Upload text or code file for Antigravity (Admin only)",
-      uploadingFile: "Uploading file to VPS...",
-      fileAttached: "File ready on server",
-      removeAttachment: "Remove file",
-      fileUploadError: "Failed to upload file"
+      attachFile: "Attach images (JPG, PNG) or files for Antigravity (Admin only)",
+      uploadingFile: "Uploading attachment to VPS...",
+      fileAttached: "Attachment ready on server",
+      removeAttachment: "Remove attachment",
+      fileUploadError: "Failed to upload image or file"
     },
     metrics: {
       title: "Live Server Metrics & Health",
@@ -436,11 +436,11 @@ export const translations = {
       copied: "¡Copiado!",
       listen: "Escuchar respuesta",
       errorPrefix: "Error procesando respuesta",
-      attachFile: "Subir archivo de texto o código para Antigravity (Solo Rodrigo)",
-      uploadingFile: "Subiendo archivo a la VPS...",
-      fileAttached: "Archivo listo en el servidor",
-      removeAttachment: "Quitar archivo",
-      fileUploadError: "Error al subir archivo"
+      attachFile: "Adjuntar imágenes (JPG, PNG) o archivos para Antigravity (Solo Rodrigo)",
+      uploadingFile: "Subiendo adjunto a la VPS...",
+      fileAttached: "Adjunto listo en el servidor",
+      removeAttachment: "Quitar adjunto",
+      fileUploadError: "Error al subir imagen o archivo"
     },
     metrics: {
       title: "Métricas del Servidor & Salud en Vivo",

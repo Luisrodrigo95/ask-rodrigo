@@ -27,6 +27,7 @@ import {
 import {
   uploadMiddleware,
   uploadFileHandler,
+  getRawUploadHandler,
   listUploadsHandler,
   batchDeleteUploadsHandler,
   batchArchiveUploadsHandler
@@ -118,6 +119,7 @@ router.post('/upload', requireAdmin, (req, res, next) => {
     next();
   });
 }, uploadFileHandler);
+router.get('/upload/raw/:filename', getRawUploadHandler);
 router.get('/upload/list', requireAdmin, listUploadsHandler);
 router.post('/upload/batch-delete', requireAdmin, batchDeleteUploadsHandler);
 router.post('/upload/batch-archive', requireAdmin, batchArchiveUploadsHandler);

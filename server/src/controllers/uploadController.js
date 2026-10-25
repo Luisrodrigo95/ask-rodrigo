@@ -32,8 +32,11 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// Allowed text and code extensions for terminal/Antigravity ingestion
+// Allowed image, text and code extensions for terminal/Antigravity ingestion
 const ALLOWED_EXTENSIONS = new Set([
+  // Images
+  '.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.bmp', '.ico',
+  // Code & text
   '.txt', '.log', '.md', '.markdown',
   '.js', '.mjs', '.cjs', '.ts', '.jsx', '.tsx',
   '.py', '.json', '.sh', '.bash', '.zsh',
@@ -58,15 +61,20 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
-  // Allow all typical text/code extensions or plain text mimetypes
-  if (ALLOWED_EXTENSIONS.has(ext) || file.mimetype.startsWith('text/') || file.mimetype === 'application/json') {
+  // Allow all typical images, text/code extensions or plain text mimetypes
+  if (
+    file.mimetype.startsWith('image/') ||
+    file.mimetype.startsWith('text/') ||
+    file.mimetype === 'application/json' ||
+    ALLOWED_EXTENSIONS.has(ext)
+  ) {
     cb(null, true);
   } else {
     // Also allow files with no extension if text
     if (!ext) {
       cb(null, true);
     } else {
-      cb(new Error(`Tipo de archivo no soportado (${ext}). Sube archivos de texto, código, logs o scripts.`));
+      cb(new Error(`Tipo de archivo no soportado (${ext}). Sube imágenes (.jpg, .png, etc.), archivos de texto, código, logs o scripts.`));
     }
   }
 };
@@ -99,15 +107,48 @@ export function uploadFileHandler(req, res) {
 
   console.log(`[Upload] File saved successfully: ${filePath} (${req.file.size} bytes) for ${req.user?.email || 'admin'}`);
 
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const isImage = req.file.mimetype.startsWith('image/') || ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.bmp', '.ico'].includes(ext);
+
   return res.json({
     ok: true,
     filename: req.file.filename,
     originalName: req.file.originalname,
     size: req.file.size,
     mimetype: req.file.mimetype,
+    isImage,
+    url: `/api/upload/raw/${req.file.filename}`,
     path: filePath,
     message: `Archivo subido y listo en: ${filePath}`
   });
+}
+
+/**
+ * Serves raw uploaded file (images, documents, text)
+ * GET /api/upload/raw/:filename
+ */
+export function getRawUploadHandler(req, res) {
+  try {
+    const rawName = req.params.filename;
+    if (!rawName) return res.status(400).send('Filename requerido');
+    const safeName = path.basename(rawName);
+
+    // 1. Check active UPLOAD_DIR
+    const activePath = path.join(UPLOAD_DIR, safeName);
+    if (fs.existsSync(activePath)) {
+      return res.sendFile(activePath);
+    }
+
+    // 2. Check ARCHIVE_DIR
+    const archivePath = path.join(ARCHIVE_DIR, safeName);
+    if (fs.existsSync(archivePath)) {
+      return res.sendFile(archivePath);
+    }
+
+    return res.status(404).send('Archivo no encontrado');
+  } catch (err) {
+    return res.status(500).send(err.message);
+  }
 }
 
 /**
