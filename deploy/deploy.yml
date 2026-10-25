@@ -41,7 +41,7 @@ jobs:
       - name: Verify No Secrets Committed in Codebase
         run: |
           echo "Scanning tracked files for potential API keys or private certificates..."
-          ! git grep -iE '(AIza[0-9A-Za-z-_]{35}|sk-[A-Za-z0-9]{32,}|BEGIN [A-Z]+ PRIVATE KEY)' -- ':!server/scripts/verify-prompt-armor.js'
+          ! git grep -iE '(AIza[0-9A-Za-z_-]{35}|sk-[A-Za-z0-9]{32,}|BEGIN [A-Z]+ PRIVATE KEY)'
 
   # -------------------------------------------------------------
   # Job 2: Client Build & Asset Compilation
