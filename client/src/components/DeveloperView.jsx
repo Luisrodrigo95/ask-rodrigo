@@ -20,6 +20,7 @@ import {
   AlertCircle,
   ShieldCheck,
   Eye,
+  EyeOff,
   Code2,
   FileJson,
   FileType,
@@ -134,7 +135,7 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-export function DeveloperView({ currentUser, t }) {
+export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDock }) {
   // Permission logic
   const isOwner = Boolean(
     currentUser?.isOwner ||
@@ -698,6 +699,35 @@ export function DeveloperView({ currentUser, t }) {
                 <RefreshCw className={`w-3.5 h-3.5 ${treeLoading ? 'animate-spin text-accent' : ''}`} />
               </button>
             </>
+          )}
+
+          {/* Toggle Schnellzugriff (Quick Access floating dock) */}
+          {onToggleDock && (
+            <button
+              onClick={onToggleDock}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-xs font-medium border transition-all cursor-pointer shadow-v2-sm ${
+                isDockVisible
+                  ? 'bg-sunken border-edge text-muted hover:text-ink hover:border-accent/40'
+                  : 'bg-accent/15 border-accent/40 text-accent font-semibold'
+              }`}
+              title={
+                isDockVisible
+                  ? 'Ocultar Schnellzugriff (dock flotante)'
+                  : 'Mostrar Schnellzugriff (dock flotante)'
+              }
+            >
+              {isDockVisible ? (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-muted" />
+                  <span className="hidden sm:inline">Ocultar Schnellzugriff</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-accent" />
+                  <span className="hidden sm:inline">Mostrar Schnellzugriff</span>
+                </>
+              )}
+            </button>
           )}
 
           {/* Role Badge */}

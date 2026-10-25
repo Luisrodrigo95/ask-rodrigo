@@ -53,6 +53,20 @@ export function App() {
   const [isSubagentsOpen, setIsSubagentsOpen] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState(() => localStorage.getItem('ask_rodrigo_workspace') || 'normal');
 
+  // Schnellzugriff / Floating Dock visibility (persisted)
+  const [isDockVisible, setIsDockVisible] = useState(() => {
+    const saved = localStorage.getItem('ask_rodrigo_dock_visible');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleToggleDock = () => {
+    setIsDockVisible((prev) => {
+      const next = !prev;
+      localStorage.setItem('ask_rodrigo_dock_visible', String(next));
+      return next;
+    });
+  };
+
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -576,6 +590,8 @@ export function App() {
             <DeveloperView
               currentUser={currentUser}
               t={t}
+              isDockVisible={isDockVisible}
+              onToggleDock={handleToggleDock}
             />
           ) : (
             <CalendarView
@@ -591,7 +607,7 @@ export function App() {
 
       </div>
 
-      {/* Floating Quick Dock (Bottom-Right) */}
+      {/* Floating Quick Dock (Bottom-Right - Schnellzugriff) */}
       <FloatingDock
         currentLanguage={language}
         onToggleLanguage={() => handleChangeLanguage(language === 'en' ? 'es' : 'en')}
@@ -601,6 +617,8 @@ export function App() {
         onToggleSubagents={() => setIsSubagentsOpen((prev) => !prev)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         isAdmin={currentUser?.role === 'admin'}
+        isVisible={isDockVisible}
+        onToggleVisible={handleToggleDock}
       />
 
       {/* Profile Modal */}

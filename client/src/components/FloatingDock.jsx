@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Globe,
   Volume2,
   VolumeX,
   Bot,
   Settings,
   ChevronRight,
-  Sparkles
+  ChevronLeft,
+  GripVertical
 } from 'lucide-react';
 
 export function FloatingDock({
@@ -17,13 +17,51 @@ export function FloatingDock({
   isSubagentsOpen,
   onToggleSubagents,
   onOpenSettings,
-  isAdmin
+  isAdmin,
+  isVisible = true,
+  onToggleVisible
 }) {
+  const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('ask_rodrigo_dock_collapsed') === 'true');
+
+  const handleToggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('ask_rodrigo_dock_collapsed', String(next));
+      return next;
+    });
+  };
+
+  // If completely hidden via VS Code or user toggle
+  if (!isVisible) {
+    return null;
+  }
+
+  // If collapsed: show discreet edge trigger tab on the right
+  if (isCollapsed) {
+    return (
+      <button
+        onClick={handleToggleCollapse}
+        aria-label="Schnellzugriff ausklappen"
+        className="fixed right-0 bottom-5 z-40 hidden sm:flex items-center gap-1 pl-2.5 pr-1.5 py-1.5 rounded-l-full bg-panel/90 border border-r-0 border-edge backdrop-blur-md shadow-v2-md text-muted hover:text-ink hover:bg-sunken transition-all cursor-pointer select-none group hover:border-accent/40"
+        title="Mostrar Schnellzugriff (Quick Access)"
+      >
+        <ChevronLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
+        <span className="text-[10px] font-mono uppercase tracking-wider text-accent font-semibold pr-0.5">Dock</span>
+      </button>
+    );
+  }
+
   return (
     <aside
       aria-label="Schnellzugriff"
-      className="fixed right-3 bottom-5 z-40 hidden sm:flex items-center gap-1.5 p-1.5 rounded-full bg-panel/90 border border-edge backdrop-blur-md shadow-v2-md transition-all select-none hover:border-accent/40"
+      data-v2-dock="mr"
+      className="fixed right-3 bottom-5 z-40 hidden sm:flex items-center gap-1.5 p-1.5 rounded-full bg-panel/90 border border-edge backdrop-blur-md shadow-v2-md transition-all select-none hover:border-accent/40 animate-fade-in"
     >
+      {/* Decorative grip */}
+      <div className="text-muted/40 pl-1 pr-0.5 cursor-default" title="Schnellzugriff">
+        <GripVertical className="w-3 h-3" />
+      </div>
+
       {/* Language Switcher */}
       <button
         onClick={onToggleLanguage}
@@ -71,6 +109,18 @@ export function FloatingDock({
         title="Settings"
       >
         <Settings className="w-3.5 h-3.5" />
+      </button>
+
+      <div className="w-px h-3.5 bg-edge" />
+
+      {/* Collapse Schnellzugriff Button */}
+      <button
+        onClick={handleToggleCollapse}
+        aria-label="Schnellzugriff einklappen"
+        className="p-1.5 rounded-full text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+        title="Esconder Schnellzugriff"
+      >
+        <ChevronRight className="w-3.5 h-3.5" />
       </button>
     </aside>
   );
