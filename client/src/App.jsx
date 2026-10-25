@@ -53,7 +53,7 @@ export function App() {
   const [isSubagentsOpen, setIsSubagentsOpen] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState(() => localStorage.getItem('ask_rodrigo_workspace') || 'normal');
 
-  // Schnellzugriff / Floating Dock visibility (persisted)
+  // Quick Access / Floating Dock visibility (persisted)
   const [isDockVisible, setIsDockVisible] = useState(() => {
     const saved = localStorage.getItem('ask_rodrigo_dock_visible');
     return saved !== null ? saved === 'true' : true;
@@ -607,7 +607,7 @@ export function App() {
 
       </div>
 
-      {/* Floating Quick Dock (Bottom-Right - Schnellzugriff) */}
+      {/* Floating Quick Dock (Bottom-Right - Quick Access) */}
       <FloatingDock
         currentLanguage={language}
         onToggleLanguage={() => handleChangeLanguage(language === 'en' ? 'es' : 'en')}

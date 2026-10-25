@@ -127,7 +127,7 @@ export function PrimaryRail({
 
   return (
     <nav
-      aria-label="Hauptnavigation"
+      aria-label="Main Navigation"
       data-v2-rail-root="true"
       className={`relative hidden md:flex shrink-0 flex-col border-r border-edge bg-paper py-3 transition-all duration-200 select-none ${
         isCollapsed ? 'w-16 px-2 items-center' : 'w-[224px] px-2.5 items-stretch'

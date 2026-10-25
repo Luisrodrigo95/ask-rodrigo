@@ -41,9 +41,9 @@ export function FloatingDock({
     return (
       <button
         onClick={handleToggleCollapse}
-        aria-label="Schnellzugriff ausklappen"
+        aria-label="Expand Quick Access"
         className="fixed right-0 bottom-5 z-40 hidden sm:flex items-center gap-1 pl-2.5 pr-1.5 py-1.5 rounded-l-full bg-panel/90 border border-r-0 border-edge backdrop-blur-md shadow-v2-md text-muted hover:text-ink hover:bg-sunken transition-all cursor-pointer select-none group hover:border-accent/40"
-        title="Mostrar Schnellzugriff (Quick Access)"
+        title="Show Quick Access"
       >
         <ChevronLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
         <span className="text-[10px] font-mono uppercase tracking-wider text-accent font-semibold pr-0.5">Dock</span>
@@ -53,12 +53,12 @@ export function FloatingDock({
 
   return (
     <aside
-      aria-label="Schnellzugriff"
+      aria-label="Quick Access"
       data-v2-dock="mr"
       className="fixed right-3 bottom-5 z-40 hidden sm:flex items-center gap-1.5 p-1.5 rounded-full bg-panel/90 border border-edge backdrop-blur-md shadow-v2-md transition-all select-none hover:border-accent/40 animate-fade-in"
     >
       {/* Decorative grip */}
-      <div className="text-muted/40 pl-1 pr-0.5 cursor-default" title="Schnellzugriff">
+      <div className="text-muted/40 pl-1 pr-0.5 cursor-default" title="Quick Access">
         <GripVertical className="w-3 h-3" />
       </div>
 
@@ -113,12 +113,12 @@ export function FloatingDock({
 
       <div className="w-px h-3.5 bg-edge" />
 
-      {/* Collapse Schnellzugriff Button */}
+      {/* Collapse Quick Access Button */}
       <button
         onClick={handleToggleCollapse}
-        aria-label="Schnellzugriff einklappen"
+        aria-label="Collapse Quick Access"
         className="p-1.5 rounded-full text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
-        title="Esconder Schnellzugriff"
+        title="Hide Quick Access"
       >
         <ChevronRight className="w-3.5 h-3.5" />
       </button>

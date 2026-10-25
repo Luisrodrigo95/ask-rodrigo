@@ -701,7 +701,7 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
             </>
           )}
 
-          {/* Toggle Schnellzugriff (Quick Access floating dock) */}
+          {/* Toggle Quick Access floating dock */}
           {onToggleDock && (
             <button
               onClick={onToggleDock}
@@ -712,19 +712,19 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
               }`}
               title={
                 isDockVisible
-                  ? 'Ocultar Schnellzugriff (dock flotante)'
-                  : 'Mostrar Schnellzugriff (dock flotante)'
+                  ? 'Hide Quick Access (floating dock)'
+                  : 'Show Quick Access (floating dock)'
               }
             >
               {isDockVisible ? (
                 <>
                   <EyeOff className="w-3.5 h-3.5 text-muted" />
-                  <span className="hidden sm:inline">Ocultar Schnellzugriff</span>
+                  <span className="hidden sm:inline">Hide Quick Access</span>
                 </>
               ) : (
                 <>
                   <Eye className="w-3.5 h-3.5 text-accent" />
-                  <span className="hidden sm:inline">Mostrar Schnellzugriff</span>
+                  <span className="hidden sm:inline">Show Quick Access</span>
                 </>
               )}
             </button>
