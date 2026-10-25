@@ -9,6 +9,7 @@ import {
   batchArchiveAgyConversations
 } from '../services/agyBridgeService.js';
 import { getSystemMetrics } from '../services/metricsService.js';
+import { invalidateUsageCache } from '../services/usageService.js';
 import {
   getCalendarEvents,
   addCalendarEvent,
@@ -50,6 +51,7 @@ export async function chatHandler(req, res) {
           effectivePrompt = `[RESTRICCIÓN DE SEGURIDAD]: El usuario actual (${req.user?.name} <${req.user?.email}>) tiene rol de Colaborador con permiso de SOLO LECTURA sobre los proyectos del servidor. NO tiene autorización para editar, modificar, borrar o sobreescribir archivos en /var/www ni proyectos existentes hasta que Rodrigo lo autorice expresamente. Puedes responder sus dudas, explicar el código o crear archivos en /home/bombi/uploads, pero NUNCA modifiques el código existente.\n\nConsulta del usuario:\n${cleanMsg}`;
         }
         const agyResult = await executeAgyPrompt(effectivePrompt, { conversationId });
+        invalidateUsageCache();
         return res.json({
           ...agyResult,
           role: 'admin'
@@ -143,7 +145,8 @@ export async function chatStreamHandler(req, res) {
         await new Promise(r => setTimeout(r, 15));
       }
 
-      sendEvent('done', {
+      invalidateUsageCache();
+    sendEvent('done', {
         conversationId: 'guest-session',
         status: 'done',
         engine: 'Knowledge AI (Modo Invitado)',
@@ -177,6 +180,7 @@ export async function chatStreamHandler(req, res) {
       }
     });
 
+    invalidateUsageCache();
     sendEvent('done', {
       conversationId: result.conversationId || activeConvId,
       duration: result.duration,

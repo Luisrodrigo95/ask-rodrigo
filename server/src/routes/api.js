@@ -53,6 +53,10 @@ import {
   developerUploadMiddleware,
   uploadDeveloperFilesHandler
 } from '../controllers/developerController.js';
+import {
+  getUsageHandler,
+  updateUsageConfigHandler
+} from '../controllers/usageController.js';
 import { authenticateToken, requireAdmin, requireOwner, requireProjectEditor } from '../middleware/auth.js';
 
 
@@ -76,6 +80,10 @@ router.get('/suggestions', suggestionsHandler);
 // --- Interactive Chat (Guests: Safe Knowledge AI / Admin: Native AGy-cli) ---
 router.post('/chat', chatHandler);
 router.all('/chat/stream', chatStreamHandler);
+
+// --- AI Token Usage & Rate Limits (5h & Weekly) ---
+router.get('/usage', getUsageHandler);
+router.post('/usage/config', requireAdmin, updateUsageConfigHandler);
 
 // --- Admin-Only Endpoints (Antigravity sessions & VPS metrics) ---
 router.get('/conversations', requireAdmin, conversationsHandler);

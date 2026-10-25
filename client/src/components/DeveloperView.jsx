@@ -725,8 +725,10 @@ export function DeveloperView({ currentUser, t }) {
             src={vsCodeIframeUrl}
             className="w-full h-full border-none"
             title="Visual Studio Code Online Suite"
-            allow="clipboard-read; clipboard-write; fullscreen"
+            allow="clipboard-read *; clipboard-write *; clipboard-read; clipboard-write; fullscreen"
+            tabIndex={0}
           />
+
         </div>
       ) : (
         /* 2. Quick Native Monaco Editor & File Tree Explorer */

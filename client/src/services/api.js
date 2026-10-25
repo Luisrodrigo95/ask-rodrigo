@@ -355,6 +355,33 @@ export async function fetchHealth() {
 }
 
 /**
+ * AI Token Usage & Rate Limits (5h & Weekly)
+ */
+export async function fetchUsage(refresh = false) {
+  const query = refresh ? '?refresh=true' : '';
+  const response = await fetch(`${API_BASE}/usage${query}`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch usage quota');
+  }
+  return await response.json();
+}
+
+export async function updateUsageConfig(config) {
+  const response = await fetch(`${API_BASE}/usage/config`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(config)
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to update usage config');
+  }
+  return await response.json();
+}
+
+/**
  * File Uploads for Terminal & Antigravity (Admin Only)
  */
 export async function uploadAdminFile(file) {

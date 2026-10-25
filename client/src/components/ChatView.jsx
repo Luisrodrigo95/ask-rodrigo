@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { marked } from 'marked';
 import { uploadAdminFile } from '../services/api.js';
+import { UsageCounter } from './UsageCounter.jsx';
 
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return '0 B';
@@ -209,9 +210,12 @@ export function ChatView({
           </p>
         </div>
 
-        {/* Right: Subagent Inspector Toggle */}
-        {isAdmin && onToggleSubagents && (
-          <div className="flex items-center gap-2">
+        {/* Right: AI Usage Counter & Subagent Inspector Toggle */}
+        <div className="flex items-center gap-2">
+          {/* Circular 5-hour quota counter & popover (placed immediately to the left of Inspector) */}
+          <UsageCounter currentUser={currentUser} t={t} />
+
+          {isAdmin && onToggleSubagents && (
             <button
               onClick={onToggleSubagents}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-xs font-medium transition-all border cursor-pointer ${
@@ -225,8 +229,8 @@ export function ChatView({
               <span className="hidden sm:inline">Inspector</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Marvin "Work in" Context Workspace Switcher */}
         {isAdmin && (
