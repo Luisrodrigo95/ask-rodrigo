@@ -1,13 +1,14 @@
 [
   {
     "email": "lg2012garcia@gmail.com",
-    "name": "Luis Rodrigo García Hernández",
+    "name": "Luis Garcia",
     "role": "admin",
     "isOwner": true,
     "canEditProjects": true,
-    "picture": null,
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocLzqG3MHJ92WVAxhIqZP-pkoCehnfy7HOzImAVZTDnZKxgBAAmY=s96-c",
     "addedAt": "2026-10-24T19:27:00.000Z",
-    "lastLogin": "2026-10-24T19:27:00.000Z"
+    "lastLogin": "2026-10-25T00:07:38.733Z",
+    "updatedAt": "2026-10-25T00:07:38.733Z"
   },
   {
     "email": "contacto@therodrigo.com",

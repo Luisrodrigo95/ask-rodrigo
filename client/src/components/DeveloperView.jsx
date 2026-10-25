@@ -26,7 +26,12 @@ import {
   Terminal,
   FolderPlus,
   FilePlus,
-  Lock
+  Lock,
+  ExternalLink,
+  Key,
+  Copy,
+  Layers,
+  Sparkles
 } from 'lucide-react';
 import {
   fetchDeveloperProjects,
@@ -138,6 +143,11 @@ export function DeveloperView({ currentUser, t }) {
   );
   const canEdit = Boolean(isOwner || currentUser?.canEditProjects);
 
+  // View Mode: 'vscode' (Full VS Code with Extensions & Terminal) vs 'monaco' (Lightweight Native Editor)
+  const [viewMode, setViewMode] = useState(canEdit ? 'vscode' : 'monaco');
+  const [iframeKey, setIframeKey] = useState(Date.now());
+  const [copiedKey, setCopiedKey] = useState(false);
+
   // Projects state
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState('portfolio');
@@ -171,6 +181,13 @@ export function DeveloperView({ currentUser, t }) {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const handleCopyPassword = () => {
+    navigator.clipboard.writeText('RodrigoDev2026!');
+    setCopiedKey(true);
+    showToast('Clave de acceso copiada al portapapeles: RodrigoDev2026!', 'success');
+    setTimeout(() => setCopiedKey(false), 2500);
+  };
+
   // 1. Load Projects on Mount
   useEffect(() => {
     const loadProjects = async () => {
@@ -195,7 +212,6 @@ export function DeveloperView({ currentUser, t }) {
     try {
       const res = await fetchDeveloperTree(projId);
       setTree(res.tree || []);
-      // Auto-expand top level folders with few items
       const initialExpanded = {};
       (res.tree || []).forEach((item) => {
         if (item.isDirectory && !item.isIgnored) {
@@ -213,9 +229,9 @@ export function DeveloperView({ currentUser, t }) {
   useEffect(() => {
     if (selectedProjectId) {
       loadTree(selectedProjectId);
-      // Close tabs from other projects or reset
       setOpenTabs([]);
       setActiveTabPath(null);
+      setIframeKey(Date.now());
     }
   }, [selectedProjectId, loadTree]);
 
@@ -227,14 +243,13 @@ export function DeveloperView({ currentUser, t }) {
     }));
   };
 
-  // Open file in Editor
+  // Open file in Editor (Monaco mode)
   const handleOpenFile = async (fileItem) => {
     if (fileItem.isDirectory) {
       toggleFolder(fileItem.relativePath);
       return;
     }
 
-    // Check if already open
     const existing = openTabs.find((t) => t.path === fileItem.relativePath);
     if (existing) {
       setActiveTabPath(fileItem.relativePath);
@@ -281,10 +296,8 @@ export function DeveloperView({ currentUser, t }) {
     }
   };
 
-  // Active Tab Object
   const currentTab = openTabs.find((t) => t.path === activeTabPath);
 
-  // Content change in Monaco
   const handleEditorChange = (value) => {
     if (!currentTab || currentTab.isBinary) return;
     const isDirty = value !== currentTab.initialContent;
@@ -293,7 +306,6 @@ export function DeveloperView({ currentUser, t }) {
     );
   };
 
-  // Save current file
   const handleSaveFile = async () => {
     if (!currentTab || !canEdit || currentTab.isBinary || !currentTab.isDirty) return;
     setIsSaving(true);
@@ -312,19 +324,17 @@ export function DeveloperView({ currentUser, t }) {
     }
   };
 
-  // Keyboard shortcut Ctrl+S / Cmd+S
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      if (viewMode === 'monaco' && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleSaveFile();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentTab, canEdit]);
+  }, [currentTab, canEdit, viewMode]);
 
-  // Handle Monaco Editor Mount
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
     editor.onDidChangeCursorPosition((e) => {
@@ -335,7 +345,6 @@ export function DeveloperView({ currentUser, t }) {
     });
   };
 
-  // Upload Files handler
   const handleFileUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !canEdit) return;
@@ -353,7 +362,6 @@ export function DeveloperView({ currentUser, t }) {
     }
   };
 
-  // Modal Submissions: Create File, Create Folder, Delete, Rename
   const handleModalSubmit = async (e) => {
     e.preventDefault();
     const { type, targetItem, inputValue } = modalState;
@@ -374,7 +382,6 @@ export function DeveloperView({ currentUser, t }) {
         if (!targetItem) return;
         await deleteDeveloperItem(selectedProjectId, targetItem.relativePath);
         showToast(`Eliminado: ${targetItem.name}`, 'success');
-        // Close if open in tabs
         setOpenTabs((prev) => prev.filter((t) => t.path !== targetItem.relativePath));
         if (activeTabPath === targetItem.relativePath) {
           setActiveTabPath(null);
@@ -392,12 +399,10 @@ export function DeveloperView({ currentUser, t }) {
     }
   };
 
-  // Recursive Tree Node Renderer
   const renderTreeNodes = (nodes, depth = 0) => {
     if (!nodes || nodes.length === 0) return null;
 
     return nodes.map((node) => {
-      // Filter check
       if (filterQuery) {
         const matchesName = node.name.toLowerCase().includes(filterQuery.toLowerCase());
         const matchesChild =
@@ -443,7 +448,6 @@ export function DeveloperView({ currentUser, t }) {
               <span className="truncate">{node.name}</span>
             </div>
 
-            {/* Quick Actions on Hover */}
             {canEdit && !node.isIgnored && (
               <div className="hidden group-hover:flex items-center gap-1 shrink-0 ml-1">
                 {node.isDirectory && (
@@ -497,7 +501,6 @@ export function DeveloperView({ currentUser, t }) {
             )}
           </div>
 
-          {/* Children nodes */}
           {node.isDirectory && isExpanded && node.children && (
             <div>{renderTreeNodes(node.children, depth + 1)}</div>
           )}
@@ -507,10 +510,10 @@ export function DeveloperView({ currentUser, t }) {
   };
 
   const selectedProjectObj = projects.find((p) => p.id === selectedProjectId);
+  const vsCodeIframeUrl = `/vscode/?folder=${encodeURIComponent(selectedProjectObj?.path || '/var/www/my-portfolio')}`;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-paper relative overflow-hidden select-text font-sans">
-      {/* Hidden File Input for uploading */}
       <input
         type="file"
         ref={fileInputRef}
@@ -519,7 +522,7 @@ export function DeveloperView({ currentUser, t }) {
         className="hidden"
       />
 
-      {/* Top Header / Project Switcher & Toolbar */}
+      {/* Top Header / Project Switcher, Mode Toggles & Toolbar */}
       <header className="px-3.5 py-2.5 border-b border-edge bg-panel/80 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 shrink-0">
         {/* Left: Project Selector */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -549,90 +552,155 @@ export function DeveloperView({ currentUser, t }) {
           </div>
         </div>
 
-        {/* Center: Action Buttons */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {canEdit ? (
+        {/* Center: IDE Mode Toggle (VS Code Full with Extension Marketplace vs Monaco Quick Editor) */}
+        {canEdit && (
+          <div className="flex items-center bg-sunken border border-edge/80 p-0.5 rounded-[10px] shadow-v2-sm">
+            <button
+              onClick={() => setViewMode('vscode')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all cursor-pointer ${
+                viewMode === 'vscode'
+                  ? 'bg-accent text-white font-semibold shadow-v2-sm'
+                  : 'text-muted hover:text-ink'
+              }`}
+              title="Visual Studio Code oficial con Marketplace de Extensiones y Terminal"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>VS Code Completo (Extensiones)</span>
+            </button>
+            <button
+              onClick={() => setViewMode('monaco')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all cursor-pointer ${
+                viewMode === 'monaco'
+                  ? 'bg-accent text-white font-semibold shadow-v2-sm'
+                  : 'text-muted hover:text-ink'
+              }`}
+              title="Editor Rápido y Gestor de Archivos nativo de Ask-Rodrigo"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Editor Rápido</span>
+            </button>
+          </div>
+        )}
+
+        {/* Right Actions: Mode Specific Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {viewMode === 'vscode' && canEdit ? (
             <>
+              {/* Copy VS Code Password */}
               <button
-                onClick={() =>
-                  setModalState({
-                    isOpen: true,
-                    type: 'create-file',
-                    targetItem: null,
-                    inputValue: ''
-                  })
-                }
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-[8px] text-xs font-medium bg-sunken border border-edge text-ink/90 hover:text-ink hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
-                title="Crear nuevo archivo en la raíz"
+                onClick={handleCopyPassword}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-xs font-mono bg-sunken border border-edge text-ink/90 hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+                title="Copiar contraseña de acceso de VS Code (RodrigoDev2026!)"
               >
-                <FilePlus className="w-3.5 h-3.5 text-accent" />
-                <span>Archivo</span>
+                {copiedKey ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Key className="w-3.5 h-3.5 text-amber-400" />
+                )}
+                <span>{copiedKey ? '¡Copiada!' : 'Clave: RodrigoDev2026!'}</span>
               </button>
 
-              <button
-                onClick={() =>
-                  setModalState({
-                    isOpen: true,
-                    type: 'create-folder',
-                    targetItem: null,
-                    inputValue: ''
-                  })
-                }
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-[8px] text-xs font-medium bg-sunken border border-edge text-ink/90 hover:text-ink hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
-                title="Crear nueva carpeta en la raíz"
+              {/* Open in Full Browser Tab */}
+              <a
+                href={vsCodeIframeUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-xs font-medium bg-sunken border border-edge text-ink/90 hover:text-ink hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+                title="Abrir VS Code en una pestaña completa del navegador"
               >
-                <FolderPlus className="w-3.5 h-3.5 text-amber-400" />
-                <span>Carpeta</span>
-              </button>
+                <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
+                <span className="hidden sm:inline">Nueva Pestaña</span>
+              </a>
 
+              {/* Reload Iframe */}
               <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-sunken border border-edge text-ink/90 hover:text-ink hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm disabled:opacity-50"
-                title="Subir archivos desde tu computadora al VPS"
+                onClick={() => setIframeKey(Date.now())}
+                className="p-1.5 rounded-[8px] text-muted hover:text-ink hover:bg-sunken border border-edge transition-all cursor-pointer"
+                title="Recargar VS Code"
               >
-                <UploadCloud className="w-3.5 h-3.5 text-sky-400" />
-                <span>{isUploading ? 'Subiendo...' : 'Subir'}</span>
+                <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </>
           ) : (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
-              <Lock className="w-3.5 h-3.5" />
-              <span>Modo Lectura (Sin permisos de edición)</span>
-            </div>
+            /* Monaco Quick Mode Actions */
+            <>
+              {canEdit ? (
+                <>
+                  <button
+                    onClick={() =>
+                      setModalState({
+                        isOpen: true,
+                        type: 'create-file',
+                        targetItem: null,
+                        inputValue: ''
+                      })
+                    }
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-[8px] text-xs font-medium bg-sunken border border-edge text-ink/90 hover:text-ink hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+                    title="Crear nuevo archivo"
+                  >
+                    <FilePlus className="w-3.5 h-3.5 text-accent" />
+                    <span>Archivo</span>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      setModalState({
+                        isOpen: true,
+                        type: 'create-folder',
+                        targetItem: null,
+                        inputValue: ''
+                      })
+                    }
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-[8px] text-xs font-medium bg-sunken border border-edge text-ink/90 hover:text-ink hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+                    title="Crear nueva carpeta"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Carpeta</span>
+                  </button>
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium bg-sunken border border-edge text-ink/90 hover:text-ink hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm disabled:opacity-50"
+                    title="Subir archivos desde tu computadora al VPS"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5 text-sky-400" />
+                    <span>{isUploading ? 'Subiendo...' : 'Subir'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleSaveFile}
+                    disabled={!currentTab?.isDirty || isSaving || currentTab?.isBinary}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-semibold transition-all cursor-pointer shadow-v2-sm ${
+                      currentTab?.isDirty
+                        ? 'bg-gradient-to-r from-accent to-[#b4532f] text-white hover:opacity-95 shadow-[0_2px_10px_rgba(201,100,66,0.35)] animate-pulse'
+                        : 'bg-sunken border border-edge text-muted cursor-not-allowed opacity-60'
+                    }`}
+                    title="Guardar archivo actual (Ctrl + S)"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
+                  </button>
+                </>
+              ) : (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Modo Lectura</span>
+                </div>
+              )}
+
+              <button
+                onClick={() => loadTree(selectedProjectId)}
+                disabled={treeLoading}
+                className="p-1.5 rounded-[8px] text-muted hover:text-ink hover:bg-sunken border border-edge transition-all cursor-pointer"
+                title="Recargar árbol de archivos"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${treeLoading ? 'animate-spin text-accent' : ''}`} />
+              </button>
+            </>
           )}
 
-          <button
-            onClick={() => loadTree(selectedProjectId)}
-            disabled={treeLoading}
-            className="p-1.5 rounded-[8px] text-muted hover:text-ink hover:bg-sunken border border-edge transition-all cursor-pointer"
-            title="Recargar árbol de archivos"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${treeLoading ? 'animate-spin text-accent' : ''}`} />
-          </button>
-        </div>
-
-        {/* Right: Save & Permissions Badge */}
-        <div className="flex items-center gap-2">
-          {canEdit && (
-            <button
-              onClick={handleSaveFile}
-              disabled={!currentTab?.isDirty || isSaving || currentTab?.isBinary}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-semibold transition-all cursor-pointer shadow-v2-sm ${
-                currentTab?.isDirty
-                  ? 'bg-gradient-to-r from-accent to-[#b4532f] text-white hover:opacity-95 shadow-[0_2px_10px_rgba(201,100,66,0.35)] animate-pulse'
-                  : 'bg-sunken border border-edge text-muted cursor-not-allowed opacity-60'
-              }`}
-              title="Guardar archivo actual (Ctrl + S)"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
-              <kbd className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-black/20 rounded font-mono">
-                Ctrl+S
-              </kbd>
-            </button>
-          )}
-
+          {/* Role Badge */}
           <div
             className={`hidden md:flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-[8px] border ${
               isOwner
@@ -648,221 +716,212 @@ export function DeveloperView({ currentUser, t }) {
         </div>
       </header>
 
-      {/* Main Body: Left Explorer + Right Monaco IDE */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: File Explorer */}
-        <aside className="w-64 md:w-72 border-r border-edge bg-panel flex flex-col shrink-0">
-          <div className="p-2.5 border-b border-edge/60 flex flex-col gap-2">
-            <div className="flex items-center justify-between text-[11px] font-mono text-muted uppercase tracking-wider px-1">
-              <span>Explorador de Archivos</span>
-              <span className="text-[10px] text-muted/60">{tree.length} items</span>
-            </div>
-
-            {/* Search Filter input */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
-              <input
-                type="text"
-                placeholder="Filtrar archivos..."
-                value={filterQuery}
-                onChange={(e) => setFilterQuery(e.target.value)}
-                className="w-full bg-sunken border border-edge rounded-[7px] pl-8 pr-2.5 py-1 text-xs text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none font-mono"
-              />
-              {filterQuery && (
-                <button
-                  onClick={() => setFilterQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-ink text-xs"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Tree Scroll Container */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 [scrollbar-width:thin]">
-            {treeLoading && tree.length === 0 ? (
-              <div className="p-6 text-center text-xs text-muted font-mono flex flex-col items-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-accent" />
-                <span>Cargando archivos del VPS...</span>
+      {/* Main Workspace Area: Mode Switch */}
+      {viewMode === 'vscode' && canEdit ? (
+        /* 1. Full VS Code Server with Extension Marketplace, Terminal, and Git */
+        <div className="flex-1 w-full h-full relative bg-[#1e1e1e]">
+          <iframe
+            key={iframeKey}
+            src={vsCodeIframeUrl}
+            className="w-full h-full border-none"
+            title="Visual Studio Code Online Suite"
+            allow="clipboard-read; clipboard-write; fullscreen"
+          />
+        </div>
+      ) : (
+        /* 2. Quick Native Monaco Editor & File Tree Explorer */
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left Sidebar: File Explorer */}
+          <aside className="w-64 md:w-72 border-r border-edge bg-panel flex flex-col shrink-0">
+            <div className="p-2.5 border-b border-edge/60 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-[11px] font-mono text-muted uppercase tracking-wider px-1">
+                <span>Explorador de Archivos</span>
+                <span className="text-[10px] text-muted/60">{tree.length} items</span>
               </div>
-            ) : tree.length === 0 ? (
-              <div className="p-6 text-center text-xs text-muted font-mono">
-                No hay archivos disponibles en este directorio.
-              </div>
-            ) : (
-              renderTreeNodes(tree)
-            )}
-          </div>
-        </aside>
 
-        {/* Right Area: Monaco Editor + Tabs */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e]">
-          {/* Tabs Bar */}
-          <div className="h-9 bg-[#252526] border-b border-[#333333] flex items-center overflow-x-auto [scrollbar-width:none] shrink-0 select-none">
-            {openTabs.map((tab) => {
-              const isActive = tab.path === activeTabPath;
-              return (
-                <div
-                  key={tab.path}
-                  onClick={() => setActiveTabPath(tab.path)}
-                  className={`h-full flex items-center gap-2 px-3.5 border-r border-[#333333] cursor-pointer text-xs font-mono transition-colors shrink-0 ${
-                    isActive
-                      ? 'bg-[#1e1e1e] text-white border-t-2 border-t-accent font-medium'
-                      : 'bg-[#2d2d2d] text-zinc-400 hover:bg-[#282828] hover:text-zinc-200'
-                  }`}
-                  title={tab.path}
-                >
-                  {getFileIcon(tab.name)}
-                  <span className="truncate max-w-[140px]">{tab.name}</span>
-                  {tab.isDirty && (
-                    <span
-                      className="w-2 h-2 rounded-full bg-accent shrink-0 animate-pulse"
-                      title="Cambios no guardados"
-                    />
-                  )}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                <input
+                  type="text"
+                  placeholder="Filtrar archivos..."
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  className="w-full bg-sunken border border-edge rounded-[7px] pl-8 pr-2.5 py-1 text-xs text-ink placeholder:text-muted/60 focus:border-accent focus:outline-none font-mono"
+                />
+                {filterQuery && (
                   <button
-                    onClick={(e) => handleCloseTab(e, tab.path)}
-                    className="p-0.5 rounded hover:bg-white/10 hover:text-white text-zinc-400"
-                    title="Cerrar pestaña"
+                    onClick={() => setFilterQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-ink text-xs"
                   >
-                    <X className="w-3 h-3" />
+                    ×
                   </button>
-                </div>
-              );
-            })}
-
-            {openTabs.length === 0 && (
-              <div className="px-3 text-xs font-mono text-zinc-500 italic">
-                Ningún archivo abierto
+                )}
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Editor Container / Welcome Screen */}
-          <div className="flex-1 relative overflow-hidden">
-            {fileLoading ? (
-              <div className="absolute inset-0 bg-[#1e1e1e]/90 backdrop-blur-sm grid place-items-center text-xs font-mono text-zinc-300 z-10">
-                <div className="flex items-center gap-2">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 [scrollbar-width:thin]">
+              {treeLoading && tree.length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted font-mono flex flex-col items-center gap-2">
                   <RefreshCw className="w-4 h-4 animate-spin text-accent" />
-                  <span>Cargando archivo desde el servidor...</span>
+                  <span>Cargando archivos del VPS...</span>
                 </div>
-              </div>
-            ) : null}
-
-            {currentTab ? (
-              currentTab.isBinary ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400">
-                  <AlertCircle className="w-10 h-10 text-amber-400 mb-2" />
-                  <h3 className="text-sm font-semibold text-zinc-200">Archivo Binario</h3>
-                  <p className="text-xs font-mono mt-1 text-zinc-400">
-                    {currentTab.name} ({formatBytes(currentTab.size)})
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-2 max-w-sm">
-                    Este formato no puede previsualizarse ni editarse como texto plano en el editor.
-                  </p>
+              ) : tree.length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted font-mono">
+                  No hay archivos disponibles en este directorio.
                 </div>
               ) : (
-                <Editor
-                  height="100%"
-                  language={currentTab.language}
-                  value={currentTab.content}
-                  theme="vs-dark"
-                  onChange={handleEditorChange}
-                  onMount={handleEditorDidMount}
-                  options={{
-                    readOnly: !canEdit,
-                    minimap: { enabled: true },
-                    fontSize: 13,
-                    fontFamily:
-                      "'JetBrains Mono', 'Fira Code', Menlo, Monaco, 'Courier New', monospace",
-                    fontLigatures: true,
-                    lineNumbers: 'on',
-                    wordWrap: 'on',
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    tabSize: 2,
-                    cursorBlinking: 'smooth',
-                    smoothScrolling: true,
-                    bracketPairColorization: { enabled: true },
-                    formatOnPaste: true
-                  }}
-                />
-              )
-            ) : (
-              /* Welcome / Empty IDE State */
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 text-zinc-400 select-none">
-                <div className="grid h-16 w-16 place-items-center rounded-2xl bg-zinc-800/60 border border-zinc-700/60 mb-4 shadow-v2-md">
-                  <Code2 className="w-8 h-8 text-accent" />
-                </div>
-                <h2 className="text-base font-semibold text-zinc-200">
-                  Espacio de Desarrollo — Ask-Rodrigo
-                </h2>
-                <p className="text-xs text-zinc-400 max-w-md mt-1.5 leading-relaxed font-mono">
-                  Selecciona cualquier archivo del explorador a la izquierda para visualizarlo o
-                  editarlo en tiempo real directamente en tu servidor.
-                </p>
+                renderTreeNodes(tree)
+              )}
+            </div>
+          </aside>
 
-                <div className="grid grid-cols-2 gap-3 mt-6 text-left max-w-sm text-xs font-mono">
-                  <div className="p-2.5 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
-                    <span className="text-accent font-semibold block mb-0.5">Guardar</span>
-                    <span className="text-zinc-400">Ctrl + S / Botón Guardar</span>
+          {/* Center Monaco Editor & Tabs */}
+          <main className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e]">
+            <div className="h-9 bg-[#252526] border-b border-[#333333] flex items-center overflow-x-auto [scrollbar-width:none] shrink-0 select-none">
+              {openTabs.map((tab) => {
+                const isActive = tab.path === activeTabPath;
+                return (
+                  <div
+                    key={tab.path}
+                    onClick={() => setActiveTabPath(tab.path)}
+                    className={`h-full flex items-center gap-2 px-3.5 border-r border-[#333333] cursor-pointer text-xs font-mono transition-colors shrink-0 ${
+                      isActive
+                        ? 'bg-[#1e1e1e] text-white border-t-2 border-t-accent font-medium'
+                        : 'bg-[#2d2d2d] text-zinc-400 hover:bg-[#282828] hover:text-zinc-200'
+                    }`}
+                    title={tab.path}
+                  >
+                    {getFileIcon(tab.name)}
+                    <span className="truncate max-w-[140px]">{tab.name}</span>
+                    {tab.isDirty && (
+                      <span
+                        className="w-2 h-2 rounded-full bg-accent shrink-0 animate-pulse"
+                        title="Cambios no guardados"
+                      />
+                    )}
+                    <button
+                      onClick={(e) => handleCloseTab(e, tab.path)}
+                      className="p-0.5 rounded hover:bg-white/10 hover:text-white text-zinc-400"
+                      title="Cerrar pestaña"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
-                    <span className="text-accent font-semibold block mb-0.5">Buscar</span>
-                    <span className="text-zinc-400">Ctrl + F en el editor</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
-                    <span className="text-accent font-semibold block mb-0.5">Subir</span>
-                    <span className="text-zinc-400">Botón Subir en la barra</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-zinc-800/40 border border-zinc-700/50">
-                    <span className="text-accent font-semibold block mb-0.5">Gestión</span>
-                    <span className="text-zinc-400">Crear o borrar archivos</span>
+                );
+              })}
+
+              {openTabs.length === 0 && (
+                <div className="px-3 text-xs font-mono text-zinc-500 italic">
+                  Ningún archivo abierto
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 relative overflow-hidden">
+              {fileLoading ? (
+                <div className="absolute inset-0 bg-[#1e1e1e]/90 backdrop-blur-sm grid place-items-center text-xs font-mono text-zinc-300 z-10">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-accent" />
+                    <span>Cargando archivo desde el servidor...</span>
                   </div>
                 </div>
+              ) : null}
+
+              {currentTab ? (
+                currentTab.isBinary ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-400">
+                    <AlertCircle className="w-10 h-10 text-amber-400 mb-2" />
+                    <h3 className="text-sm font-semibold text-zinc-200">Archivo Binario</h3>
+                    <p className="text-xs font-mono mt-1 text-zinc-400">
+                      {currentTab.name} ({formatBytes(currentTab.size)})
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-2 max-w-sm">
+                      Este formato no puede previsualizarse ni editarse como texto plano en el editor.
+                    </p>
+                  </div>
+                ) : (
+                  <Editor
+                    height="100%"
+                    language={currentTab.language}
+                    value={currentTab.content}
+                    theme="vs-dark"
+                    onChange={handleEditorChange}
+                    onMount={handleEditorDidMount}
+                    options={{
+                      readOnly: !canEdit,
+                      minimap: { enabled: true },
+                      fontSize: 13,
+                      fontFamily:
+                        "'JetBrains Mono', 'Fira Code', Menlo, Monaco, 'Courier New', monospace",
+                      fontLigatures: true,
+                      lineNumbers: 'on',
+                      wordWrap: 'on',
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      tabSize: 2,
+                      cursorBlinking: 'smooth',
+                      smoothScrolling: true,
+                      bracketPairColorization: { enabled: true },
+                      formatOnPaste: true
+                    }}
+                  />
+                )
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8 text-zinc-400 select-none">
+                  <div className="grid h-16 w-16 place-items-center rounded-2xl bg-zinc-800/60 border border-zinc-700/60 mb-4 shadow-v2-md">
+                    <Code2 className="w-8 h-8 text-accent" />
+                  </div>
+                  <h2 className="text-base font-semibold text-zinc-200">
+                    Editor Rápido — Ask-Rodrigo
+                  </h2>
+                  <p className="text-xs text-zinc-400 max-w-md mt-1.5 leading-relaxed font-mono">
+                    Selecciona cualquier archivo del explorador a la izquierda o cambia a{' '}
+                    <strong className="text-accent font-semibold">VS Code Completo</strong> arriba
+                    para utilizar la terminal y el marketplace de extensiones.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <footer className="h-6 bg-[#007acc] text-white flex items-center justify-between px-3 text-[11px] font-mono shrink-0 select-none">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1 font-semibold">
+                  <Code2 className="w-3 h-3" />
+                  {selectedProjectObj?.name || 'Workspace'}
+                </span>
+                {currentTab && (
+                  <>
+                    <span>·</span>
+                    <span className="truncate max-w-xs">{currentTab.path}</span>
+                  </>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Bottom VS Code Status Bar */}
-          <footer className="h-6 bg-[#007acc] text-white flex items-center justify-between px-3 text-[11px] font-mono shrink-0 select-none">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 font-semibold">
-                <Code2 className="w-3 h-3" />
-                {selectedProjectObj?.name || 'Workspace'}
-              </span>
-              {currentTab && (
-                <>
-                  <span>·</span>
-                  <span className="truncate max-w-xs">{currentTab.path}</span>
-                </>
-              )}
-            </div>
+              <div className="flex items-center gap-3">
+                {currentTab && !currentTab.isBinary && (
+                  <>
+                    <span>
+                      Ln {editorCursorInfo.line}, Col {editorCursorInfo.col}
+                    </span>
+                    <span>UTF-8</span>
+                    <span className="uppercase">{currentTab.language}</span>
+                  </>
+                )}
+                <span
+                  className={`px-1.5 py-0.2 rounded text-[10px] ${
+                    canEdit ? 'bg-black/20 text-white font-medium' : 'bg-amber-400 text-black font-bold'
+                  }`}
+                >
+                  {canEdit ? 'EDITABLE' : 'READ-ONLY'}
+                </span>
+              </div>
+            </footer>
+          </main>
+        </div>
+      )}
 
-            <div className="flex items-center gap-3">
-              {currentTab && !currentTab.isBinary && (
-                <>
-                  <span>
-                    Ln {editorCursorInfo.line}, Col {editorCursorInfo.col}
-                  </span>
-                  <span>UTF-8</span>
-                  <span className="uppercase">{currentTab.language}</span>
-                </>
-              )}
-              <span
-                className={`px-1.5 py-0.2 rounded text-[10px] ${
-                  canEdit ? 'bg-black/20 text-white font-medium' : 'bg-amber-400 text-black font-bold'
-                }`}
-              >
-                {canEdit ? 'EDITABLE' : 'READ-ONLY'}
-              </span>
-            </div>
-          </footer>
-        </main>
-      </div>
 
-      {/* Action Modals: Create File, Create Folder, Delete, Rename */}
+      {/* Action Modals */}
       {modalState.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-sm rounded-[14px] bg-panel border border-edge p-5 shadow-v2-lg flex flex-col gap-4">
