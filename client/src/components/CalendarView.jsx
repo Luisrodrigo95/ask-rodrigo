@@ -28,7 +28,10 @@ import {
   Zap,
   Tag,
   Building,
-  CheckCircle2
+  CheckCircle2,
+  Columns3,
+  Rows3,
+  ArrowLeftRight
 } from 'lucide-react';
 
 function isSameDay(d1, d2) {
@@ -149,6 +152,88 @@ function layoutDayEvents(events, hourWidth = HOUR_WIDTH) {
 
   return { placed, rowHeight };
 }
+
+const HOUR_ROW_HEIGHT = 60;
+
+function layoutVerticalDayEvents(events, hourHeight = HOUR_ROW_HEIGHT) {
+  if (!events || events.length === 0) return [];
+
+  const parsed = events.map((evt) => {
+    let startMin = 9 * 60;
+    let endMin = 10 * 60;
+
+    if (evt.eventType === 'absence') {
+      startMin = 0;
+      endMin = 1440;
+    } else if (evt.time) {
+      const parts = evt.time.split(/[-–—]/);
+      if (parts.length >= 2) {
+        const sm = parseTimeToMinutes(parts[0].trim());
+        const em = parseTimeToMinutes(parts[1].trim());
+        if (sm !== null) startMin = sm;
+        if (em !== null) endMin = em;
+        else endMin = startMin + 60;
+      } else {
+        const sm = parseTimeToMinutes(evt.time.trim());
+        if (sm !== null) {
+          startMin = sm;
+          endMin = startMin + 60;
+        }
+      }
+    } else {
+      startMin = 9 * 60;
+      endMin = 10 * 60;
+    }
+
+    if (endMin <= startMin) {
+      endMin = Math.min(1440, startMin + 45);
+    }
+
+    return {
+      evt,
+      startMin,
+      endMin
+    };
+  });
+
+  parsed.sort((a, b) => a.startMin - b.startMin || (b.endMin - b.startMin) - (a.endMin - a.startMin));
+
+  const lanes = [];
+  const itemsWithLane = parsed.map((item) => {
+    let assignedLane = -1;
+    for (let i = 0; i < lanes.length; i++) {
+      if (lanes[i] <= item.startMin) {
+        assignedLane = i;
+        lanes[i] = item.endMin;
+        break;
+      }
+    }
+    if (assignedLane === -1) {
+      assignedLane = lanes.length;
+      lanes.push(item.endMin);
+    }
+    return { ...item, lane: assignedLane };
+  });
+
+  const totalLanes = Math.max(1, lanes.length);
+
+  return itemsWithLane.map((item) => {
+    const top = (item.startMin / 60) * hourHeight;
+    const rawHeight = ((item.endMin - item.startMin) / 60) * hourHeight;
+    const height = Math.max(28, rawHeight - 2);
+    const widthPercent = 100 / totalLanes;
+    const leftPercent = item.lane * widthPercent;
+
+    return {
+      ...item,
+      top,
+      height,
+      leftPercent,
+      widthPercent
+    };
+  });
+}
+
 
 export function CalendarView({
   events = [],
@@ -272,18 +357,39 @@ export function CalendarView({
 
   const weekTimelineRef = useRef(null);
 
-  // Auto-scroll weekly grid horizontally to the current hour on mount/week switch
+  const [weekOrientation, setWeekOrientation] = useState(() => {
+    try {
+      return localStorage.getItem('ask_rodrigo_calendar_week_orientation') || 'days-cols';
+    } catch {
+      return 'days-cols';
+    }
+  });
+
+  const handleOrientationChange = (orient) => {
+    setWeekOrientation(orient);
+    try {
+      localStorage.setItem('ask_rodrigo_calendar_week_orientation', orient);
+    } catch {
+      // ignore
+    }
+  };
+
+  // Auto-scroll weekly grid to the current hour on mount/week switch/orientation change
   useEffect(() => {
     if (viewMode === 'week' && weekTimelineRef.current) {
       const nowH = new Date().getHours();
-      const targetHour = Math.max(0, Math.min(nowH - 1, 16));
       setTimeout(() => {
-        if (weekTimelineRef.current) {
-          weekTimelineRef.current.scrollLeft = targetHour * HOUR_WIDTH;
+        if (!weekTimelineRef.current) return;
+        if (weekOrientation === 'days-cols') {
+          const targetY = Math.max(0, (nowH - 1) * HOUR_ROW_HEIGHT);
+          weekTimelineRef.current.scrollTop = targetY;
+        } else {
+          const targetX = Math.max(0, (nowH - 1) * HOUR_WIDTH);
+          weekTimelineRef.current.scrollLeft = targetX;
         }
       }, 50);
     }
-  }, [viewMode, selectedDate]);
+  }, [viewMode, weekOrientation, selectedDate]);
 
   const handleCellClick = (dayIso, hour) => {
     if (!isAdmin) return;
@@ -295,10 +401,17 @@ export function CalendarView({
   const handleScrollToNow = () => {
     if (weekTimelineRef.current) {
       const nowH = new Date().getHours();
-      weekTimelineRef.current.scrollTo({
-        left: Math.max(0, (nowH - 1) * HOUR_WIDTH),
-        behavior: 'smooth'
-      });
+      if (weekOrientation === 'days-cols') {
+        weekTimelineRef.current.scrollTo({
+          top: Math.max(0, (nowH - 1) * HOUR_ROW_HEIGHT),
+          behavior: 'smooth'
+        });
+      } else {
+        weekTimelineRef.current.scrollTo({
+          left: Math.max(0, (nowH - 1) * HOUR_WIDTH),
+          behavior: 'smooth'
+        });
+      }
     }
   };
 
@@ -306,6 +419,11 @@ export function CalendarView({
   const nowPositionLeft = useMemo(() => {
     const mins = currentTime.getHours() * 60 + currentTime.getMinutes();
     return (mins / 60) * HOUR_WIDTH;
+  }, [currentTime]);
+
+  const nowPositionTop = useMemo(() => {
+    const mins = currentTime.getHours() * 60 + currentTime.getMinutes();
+    return (mins / 60) * HOUR_ROW_HEIGHT;
   }, [currentTime]);
 
   // Compute the 7 days of the active week (Monday to Sunday)
@@ -625,6 +743,156 @@ export function CalendarView({
     );
   };
 
+  const renderVerticalEventCard = (evt, item) => {
+    // 1. Private and non-admin
+    if (evt.isPrivate && !isAdmin) {
+      return (
+        <div
+          key={evt.id}
+          style={{
+            top: `${item.top}px`,
+            height: `${item.height}px`,
+            left: `${item.leftPercent}%`,
+            width: `calc(${item.widthPercent}% - 4px)`
+          }}
+          className="absolute z-10 flex flex-col justify-center px-1.5 rounded-[6px] border border-edge bg-panel/70 opacity-60 grayscale select-none text-[10px] font-mono text-muted shadow-xs overflow-hidden"
+          title="Private Event"
+        >
+          <div className="flex items-center gap-1">
+            <Lock className="w-2.5 h-2.5 text-rose-400 shrink-0" />
+            <span className="truncate">Private</span>
+          </div>
+        </div>
+      );
+    }
+
+    // 2. Shift / Work Block
+    if (evt.eventType === 'shift') {
+      return (
+        <div
+          key={evt.id}
+          style={{
+            top: `${item.top}px`,
+            height: `${item.height}px`,
+            left: `${item.leftPercent}%`,
+            width: `calc(${item.widthPercent}% - 4px)`
+          }}
+          className="absolute z-10 group flex flex-col justify-between p-1.5 rounded-[7px] bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs shadow-xs hover:z-30 hover:border-amber-400 transition-all cursor-pointer overflow-hidden"
+          title={`${evt.title} (${evt.time || '10:00–18:00'}) ${evt.description ? `- ${evt.description}` : ''}`}
+        >
+          <div className="flex items-start justify-between gap-1 min-w-0">
+            <span className="font-mono font-bold text-[10px] text-amber-300 shrink-0">
+              {evt.time || 'Shift'}
+            </span>
+            {isAdmin && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteEvent(evt.id);
+                }}
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-amber-300 hover:text-rose-400 transition-opacity cursor-pointer shrink-0"
+                title="Eliminar evento"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+          <span className="truncate font-medium text-[11px] leading-tight">{evt.title}</span>
+        </div>
+      );
+    }
+
+    // 3. Absence / Leave
+    if (evt.eventType === 'absence') {
+      return (
+        <div
+          key={evt.id}
+          style={{
+            top: `${item.top}px`,
+            height: `${item.height}px`,
+            left: `${item.leftPercent}%`,
+            width: `calc(${item.widthPercent}% - 4px)`
+          }}
+          className="absolute z-10 group flex flex-col justify-between p-1.5 rounded-[7px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs shadow-xs hover:z-30 hover:border-emerald-400 transition-all cursor-pointer overflow-hidden"
+          title={`${evt.title} (Ausencia / Permiso) ${evt.description ? `- ${evt.description}` : ''}`}
+        >
+          <div className="flex items-start justify-between gap-1 min-w-0">
+            <div className="flex items-center gap-1 min-w-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+              <span className="truncate font-semibold text-[10px] text-emerald-300 uppercase tracking-wider">Leave</span>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteEvent(evt.id);
+                }}
+                className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-emerald-300 hover:text-rose-400 transition-opacity cursor-pointer shrink-0"
+                title="Eliminar evento"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+          <span className="truncate font-medium text-[11px] leading-tight">{evt.title}</span>
+        </div>
+      );
+    }
+
+    // 4. Standard Event / Milestone
+    const cat = (evt.category || '').toLowerCase();
+    const isServer = cat.includes('servidor') || cat.includes('server') || evt.layer === 'server';
+    const isCita = cat.includes('cita') || cat.includes('consular') || evt.layer === 'consular';
+    const isDev = cat.includes('project') || cat.includes('desarrollo') || evt.layer === 'projects';
+
+    const colorClasses = isServer
+      ? 'bg-teal-500/20 border-teal-500/40 text-teal-200 hover:border-teal-400'
+      : isCita
+      ? 'bg-purple-500/20 border-purple-500/40 text-purple-200 hover:border-purple-400'
+      : isDev
+      ? 'bg-accent/20 border-accent/40 text-accent hover:border-accent'
+      : 'bg-sky-500/20 border-sky-500/40 text-sky-200 hover:border-sky-400';
+
+    return (
+      <div
+        key={evt.id}
+        style={{
+          top: `${item.top}px`,
+          height: `${item.height}px`,
+          left: `${item.leftPercent}%`,
+          width: `calc(${item.widthPercent}% - 4px)`
+        }}
+        className={`absolute z-10 group flex flex-col justify-between p-1.5 rounded-[7px] border text-xs shadow-xs hover:z-30 transition-all cursor-pointer overflow-hidden ${colorClasses}`}
+        title={`${evt.title} (${evt.time || 'Sin hora'}) [${evt.category}] ${evt.description ? `- ${evt.description}` : ''}`}
+      >
+        <div className="flex items-start justify-between gap-1 min-w-0">
+          <div className="flex items-center gap-1 min-w-0">
+            {evt.time && (
+              <span className="text-[9.5px] font-mono font-semibold px-1 py-0.2 rounded bg-black/40 shrink-0">
+                {evt.time}
+              </span>
+            )}
+            {evt.isPrivate && <Lock className="w-2.5 h-2.5 text-rose-400 shrink-0" />}
+          </div>
+          {isAdmin && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteEvent(evt.id);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:text-rose-400 text-muted hover:bg-rose-500/15 transition-all cursor-pointer shrink-0"
+              title="Eliminar evento"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        <span className="truncate font-semibold text-[11px] leading-tight">{evt.title}</span>
+      </div>
+    );
+  };
+
+
   return (
     <div className="flex-1 flex flex-col h-full bg-paper text-ink overflow-hidden select-none">
       {/* 1. Header Toolbar (Ask Marvin Agenda Style) */}
@@ -694,6 +962,36 @@ export function CalendarView({
               </button>
             ))}
           </div>
+
+          {/* Orientation Switcher for Week View */}
+          {viewMode === 'week' && (
+            <div className="flex items-center overflow-hidden rounded-[10px] border border-edge text-xs bg-sunken p-0.5 shadow-xs">
+              <button
+                onClick={() => handleOrientationChange('days-cols')}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-[8px] text-[11px] font-medium transition-all cursor-pointer ${
+                  weekOrientation === 'days-cols'
+                    ? 'bg-accent text-white font-semibold shadow-xs'
+                    : 'text-muted hover:text-ink'
+                }`}
+                title="Cabecera: Días (fecha, mes, etiqueta) | Columna izquierda: Horas"
+              >
+                <Columns3 className="w-3.5 h-3.5" />
+                <span className="hidden lg:inline">Cabecera Días</span>
+              </button>
+              <button
+                onClick={() => handleOrientationChange('days-rows')}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-[8px] text-[11px] font-medium transition-all cursor-pointer ${
+                  weekOrientation === 'days-rows'
+                    ? 'bg-accent text-white font-semibold shadow-xs'
+                    : 'text-muted hover:text-ink'
+                }`}
+                title="Columna izquierda: Días | Cabecera: Horas"
+              >
+                <Rows3 className="w-3.5 h-3.5" />
+                <span className="hidden lg:inline">Columna Días</span>
+              </button>
+            </div>
+          )}
 
           {/* Quick Search Input */}
           <div className="relative hidden sm:block">
@@ -927,8 +1225,169 @@ export function CalendarView({
 
         {/* Main Agenda Timeline Container */}
         <main className={`min-w-0 flex-1 ${viewMode === 'week' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto [scrollbar-width:thin]'}`}>
-          {/* VIEW 1: WEEK MATRIX GRID (Days as Rows, Hours as Columns) */}
-          {viewMode === 'week' && (
+          {/* VIEW 1: WEEK VIEW (Orientation Switchable) */}
+          {/* 1A. DAYS AS COLUMNS (Header: Día, Fecha, Mes, Etiqueta | Left: Horas) */}
+          {viewMode === 'week' && weekOrientation === 'days-cols' && (
+            <div
+              ref={weekTimelineRef}
+              className="flex-1 overflow-x-auto overflow-y-auto [scrollbar-width:thin] select-none bg-paper"
+            >
+              <div className="inline-block min-w-full">
+                {/* Top Sticky Header: Corner + 7 Day Columns */}
+                <div className="flex border-b border-edge bg-panel/95 backdrop-blur-xs sticky top-0 z-30">
+                  {/* Top-Left Corner */}
+                  <div className="sticky left-0 z-40 bg-panel border-r border-edge w-16 sm:w-20 shrink-0 px-2 py-2 flex items-center justify-between shadow-xs">
+                    <button
+                      onClick={() => handleOrientationChange('days-rows')}
+                      className="p-1 rounded text-muted hover:text-accent hover:bg-sunken cursor-pointer transition-colors"
+                      title="Cambiar orientación a Columna Días"
+                    >
+                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={handleScrollToNow}
+                      className="text-[9.5px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25 border border-accent/30 transition-colors cursor-pointer"
+                      title="Saltar a la hora actual"
+                    >
+                      Ahora
+                    </button>
+                  </div>
+
+                  {/* 7 Day Column Headers */}
+                  <div className="grid grid-cols-7 min-w-[700px] flex-1">
+                    {weekDays.map((dayDate) => {
+                      const dayIso = formatDateISO(dayDate);
+                      const isToday = isSameDay(dayDate, new Date());
+                      const isEs = (t?.calendar?.todayBtn === 'Hoy') || (clt.todayBtn === 'Hoy');
+                      const dayShortName = dayDate.toLocaleDateString(isEs ? 'es-ES' : 'en-US', { weekday: 'short' });
+                      const dayNum = dayDate.getDate();
+                      const monthName = dayDate.toLocaleDateString(isEs ? 'es-ES' : 'en-US', { month: 'short' });
+                      const dayEvents = filteredEvents.filter((e) => e.date === dayIso);
+
+                      return (
+                        <div
+                          key={dayIso}
+                          className={`px-2.5 py-2 border-r border-edge/40 flex items-center justify-between transition-colors ${
+                            isToday ? 'bg-accent/10 border-b-2 border-b-accent' : 'hover:bg-panel/40'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="flex flex-col min-w-0">
+                              <span className={`text-xs font-semibold capitalize ${isToday ? 'text-accent font-bold' : 'text-ink'}`}>
+                                {dayShortName} {dayNum}
+                              </span>
+                              <span className="text-[10px] text-muted font-mono">{monthName}</span>
+                            </div>
+                            {isToday && (
+                              <span className="rounded-[5px] bg-accent px-1.5 py-0.2 text-[9.5px] font-bold text-white shadow-xs shrink-0">
+                                {clt.todayBtn || 'Hoy'}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {dayEvents.length > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-sunken border border-edge/60 text-muted/90 font-mono">
+                                {dayEvents.length}
+                              </span>
+                            )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleCellClick(dayIso, 10)}
+                                className="p-1 rounded text-muted hover:text-accent hover:bg-sunken cursor-pointer transition-colors"
+                                title="Añadir evento a este día"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Grid Body: Sticky Left Hours Column + 7 Day Columns */}
+                <div className="flex relative" style={{ height: `${24 * HOUR_ROW_HEIGHT}px` }}>
+                  {/* Sticky Left Column with 24 Hours */}
+                  <div className="sticky left-0 z-20 bg-panel border-r border-edge w-16 sm:w-20 shrink-0 select-none shadow-xs">
+                    {HOURS.map((h) => {
+                      const isNowHour = currentHour === h;
+                      return (
+                        <div
+                          key={h}
+                          style={{ height: `${HOUR_ROW_HEIGHT}px` }}
+                          className={`border-b border-edge/30 px-2 flex items-start justify-end pt-1 text-[11px] font-mono transition-colors ${
+                            isNowHour ? 'text-accent font-bold bg-accent/10' : 'text-muted/70'
+                          }`}
+                        >
+                          <span>{String(h).padStart(2, '0')}:00</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 7 Columns Timeline */}
+                  <div className="grid grid-cols-7 min-w-[700px] flex-1 relative">
+                    {weekDays.map((dayDate) => {
+                      const dayIso = formatDateISO(dayDate);
+                      const isToday = isSameDay(dayDate, new Date());
+                      const dayEvents = filteredEvents.filter((e) => e.date === dayIso);
+                      const placedVert = layoutVerticalDayEvents(dayEvents, HOUR_ROW_HEIGHT);
+
+                      return (
+                        <div
+                          key={dayIso}
+                          className={`relative border-r border-edge/30 h-full ${
+                            isToday ? 'bg-accent/[0.02]' : ''
+                          }`}
+                        >
+                          {/* 24 Hour slot backgrounds */}
+                          {HOURS.map((h) => {
+                            const isCurrentHourSlot = isToday && currentHour === h;
+                            const isNight = h < 7 || h >= 22;
+                            return (
+                              <div
+                                key={h}
+                                style={{ height: `${HOUR_ROW_HEIGHT}px` }}
+                                onClick={() => handleCellClick(dayIso, h)}
+                                className={`border-b border-edge/25 transition-colors cursor-pointer group/vcell ${
+                                  isCurrentHourSlot ? 'bg-accent/5' : isNight ? 'bg-black/15' : 'hover:bg-panel/40'
+                                }`}
+                                title={isAdmin ? `Click para añadir evento a las ${String(h).padStart(2, '0')}:00` : undefined}
+                              >
+                                {isAdmin && (
+                                  <div className="w-full h-full opacity-0 group-hover/vcell:opacity-100 flex items-center justify-center pointer-events-none">
+                                    <Plus className="w-3.5 h-3.5 text-accent/50" />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* Live Now Horizontal Line for Today */}
+                          {isToday && (
+                            <div
+                              style={{ top: `${nowPositionTop}px` }}
+                              className="absolute left-0 right-0 z-20 h-0.5 bg-rose-500 pointer-events-none"
+                            >
+                              <div className="w-2.5 h-2.5 rounded-full bg-rose-500 -ml-1 -mt-1 shadow-xs animate-pulse ring-2 ring-rose-500/30" />
+                            </div>
+                          )}
+
+                          {/* Rendered Event Cards */}
+                          {placedVert.map((item) => renderVerticalEventCard(item.evt, item))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 1B. DAYS AS ROWS (Header: Horas | Left: Día, Fecha, Mes, Etiqueta) */}
+          {viewMode === 'week' && weekOrientation === 'days-rows' && (
             <div
               ref={weekTimelineRef}
               className="flex-1 overflow-x-auto overflow-y-auto [scrollbar-width:thin] select-none bg-paper"
@@ -937,9 +1396,18 @@ export function CalendarView({
                 {/* Top Sticky Header: Corner + 24 Hours */}
                 <div className="flex border-b border-edge bg-panel/95 backdrop-blur-xs sticky top-0 z-30">
                   <div className="sticky left-0 z-40 bg-panel border-r border-edge w-36 sm:w-44 shrink-0 px-3 py-2 flex items-center justify-between shadow-xs">
-                    <span className="text-[11px] font-mono font-semibold text-muted uppercase tracking-wider">
-                      {clt.dayCol || 'Día \\ Horas'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOrientationChange('days-cols')}
+                        className="p-1 rounded text-muted hover:text-accent hover:bg-sunken cursor-pointer transition-colors"
+                        title="Cambiar orientación a Cabecera Días"
+                      >
+                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[11px] font-mono font-semibold text-muted uppercase tracking-wider">
+                        {clt.dayCol || 'Día \\ Horas'}
+                      </span>
+                    </div>
                     <button
                       onClick={handleScrollToNow}
                       className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25 border border-accent/30 transition-colors cursor-pointer"
