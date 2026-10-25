@@ -87,7 +87,9 @@ export const translations = {
       confirmBatchArchive: "Archive {count} selected conversations?",
       closeDrawer: "Close",
       batchSelectTitle: "Select multiple chats",
-      cancelSelect: "Cancel multi-select"
+      cancelSelect: "Cancel multi-select",
+      refreshChats: "Refresh",
+      refreshChatsTooltip: "Refresh chat list & sync messages"
     },
     subagents: {
       title: "Subagents & Inspector",
@@ -211,6 +213,8 @@ export const translations = {
       thinkingLowDesc: "Minimal latency with fast, direct answers.",
       thinkingMedDesc: "Balanced reasoning with solid speed and technical depth.",
       thinkingHighDesc: "Deep step-by-step reasoning for architecture and complex tasks.",
+      refreshBtn: "Sync",
+      refreshChatsTooltip: "Refresh chat and sync latest messages from server",
       models: {
         gemini: "Gemini 3.8 Flash (High/Medium)",
         claudeSonnet: "Claude Sonnet 4.6 (Thinking)",
@@ -504,7 +508,9 @@ export const translations = {
       confirmBatchArchive: "¿Archivar las {count} conversaciones seleccionadas?",
       closeDrawer: "Cerrar",
       batchSelectTitle: "Seleccionar varios chats",
-      cancelSelect: "Cancelar selección múltiple"
+      cancelSelect: "Cancelar selección múltiple",
+      refreshChats: "Refrescar",
+      refreshChatsTooltip: "Actualizar lista de chats y sincronizar mensajes"
     },
     subagents: {
       title: "Subagentes & Inspector",
@@ -628,6 +634,8 @@ export const translations = {
       thinkingLowDesc: "Mínima latencia con respuestas ágiles y directas.",
       thinkingMedDesc: "Pensamiento equilibrado con buena velocidad y análisis técnico.",
       thinkingHighDesc: "Pensamiento profundo paso a paso para análisis exhaustivo y arquitectura.",
+      refreshBtn: "Sincronizar",
+      refreshChatsTooltip: "Refrescar chat y sincronizar mensajes recientes del servidor",
       models: {
         gemini: "Gemini 3.8 Flash (High/Medium)",
         claudeSonnet: "Claude Sonnet 4.6 (Thinking)",

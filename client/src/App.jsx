@@ -102,6 +102,7 @@ export function App() {
   const [streamingReplies, setStreamingReplies] = useState({}); // { [id | 'new']: string }
   const [streamingStatuses, setStreamingStatuses] = useState({}); // { [id | 'new']: string }
   const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [isRefreshingChats, setIsRefreshingChats] = useState(false);
 
   // Metrics state
   const [metrics, setMetrics] = useState(null);
@@ -281,16 +282,60 @@ export function App() {
       setConversations(list);
 
       const savedConv = localStorage.getItem('ask_rodrigo_active_conv');
-      if (autoSelect && list.length > 0 && !activeConversationId && savedConv) {
-        const found = list.find((c) => c.id === savedConv);
-        if (found) {
-          handleSelectConversation(savedConv);
-        }
+      if (autoSelect && !activeConversationId && savedConv) {
+        handleSelectConversation(savedConv);
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);
     } finally {
       setConversationsLoading(false);
+    }
+  };
+
+  const handleRefreshChats = async () => {
+    if (currentUser?.role !== 'admin') return;
+    setIsRefreshingChats(true);
+    try {
+      // 1. Refresh conversations list from server without re-selecting
+      await loadConversations(false);
+
+      // 2. If an active conversation exists, sync its latest messages from the transcript
+      if (activeConversationId) {
+        const detail = await fetchConversationDetail(activeConversationId);
+        if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
+          const lastMsg = detail.messages[detail.messages.length - 1];
+          // If the server finished and responded with an assistant reply, clear any leftover generating state
+          if (lastMsg?.role === 'assistant' && generatingMap[activeConversationId]) {
+            setGeneratingMap((prev) => {
+              const next = { ...prev };
+              delete next[activeConversationId];
+              return next;
+            });
+            setStreamingStatuses((prev) => {
+              const next = { ...prev };
+              delete next[activeConversationId];
+              return next;
+            });
+            setStreamingReplies((prev) => {
+              const next = { ...prev };
+              delete next[activeConversationId];
+              return next;
+            });
+          }
+
+          // Update messages if not actively generating or if turn completed
+          if (!generatingMap[activeConversationId] || lastMsg?.role === 'assistant') {
+            setConversationsMessages((prev) => ({
+              ...prev,
+              [activeConversationId]: detail.messages
+            }));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to refresh chats:', err);
+    } finally {
+      setIsRefreshingChats(false);
     }
   };
 
@@ -869,6 +914,8 @@ export function App() {
                 onDeleteConversation={handleDeleteConversation}
                 onBatchDeleteConversations={handleBatchDeleteConversations}
                 onBatchArchiveConversations={handleBatchArchiveConversations}
+                onRefreshChats={handleRefreshChats}
+                isRefreshing={isRefreshingChats || conversationsLoading}
                 loading={conversationsLoading}
                 currentUser={currentUser}
                 onOpenLogin={() => setIsLoginOpen(true)}
@@ -892,6 +939,8 @@ export function App() {
                 thinkingEffort={thinkingEffort}
                 onChangeThinkingEffort={handleChangeEffort}
                 onSendMessage={handleSendMessage}
+                onRefreshChats={handleRefreshChats}
+                isRefreshing={isRefreshingChats || conversationsLoading}
                 suggestions={suggestions}
                 onSelectSuggestion={(sug) => handleSendMessage(sug, activeWorkspace)}
                 speechEnabled={speechEnabled}

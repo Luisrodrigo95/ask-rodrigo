@@ -14,7 +14,8 @@ import {
   Archive,
   ArchiveRestore,
   ListChecks,
-  Check
+  Check,
+  RotateCw
 } from 'lucide-react';
 
 function isSameDay(d1, d2) {
@@ -40,6 +41,8 @@ export const SessionDrawer = React.memo(function SessionDrawer({
   onDeleteConversation,
   onBatchDeleteConversations,
   onBatchArchiveConversations,
+  onRefreshChats,
+  isRefreshing = false,
   loading,
   currentUser,
   onOpenLogin,
@@ -250,6 +253,19 @@ export const SessionDrawer = React.memo(function SessionDrawer({
           </div>
 
           <div className="flex items-center gap-1.5">
+            {isAdmin && onRefreshChats && (
+              <button
+                type="button"
+                onClick={onRefreshChats}
+                disabled={loading || isRefreshing}
+                className="p-1.5 rounded-[8px] bg-sunken border border-edge text-muted hover:text-ink hover:border-accent/40 disabled:opacity-50 transition-all cursor-pointer shadow-v2-sm"
+                title={td.refreshChatsTooltip || td.refreshChats || 'Refrescar chats'}
+                aria-label={td.refreshChats || 'Refrescar chats'}
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${loading || isRefreshing ? 'animate-spin text-accent' : ''}`} />
+              </button>
+            )}
+
             {isAdmin && conversations.length > 0 && (
               <button
                 onClick={toggleSelectMode}

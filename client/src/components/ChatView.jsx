@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Send, 
   Terminal, 
@@ -140,6 +141,8 @@ export function ChatView({
   onChangeModel,
   thinkingEffort = 'high',
   onChangeThinkingEffort,
+  onRefreshChats,
+  isRefreshing = false,
   language = 'en',
   t
 }) {
@@ -150,7 +153,10 @@ export function ChatView({
   const [isDragging, setIsDragging] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 60, right: 16 });
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 640 : false));
   const modelDropdownRef = useRef(null);
+  const modelButtonRef = useRef(null);
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const isNearBottomRef = useRef(true);
@@ -159,20 +165,36 @@ export function ChatView({
   const draftsRef = useRef({});
   const prevConvIdRef = useRef(conversationId);
 
-  // Close model popover on outside click
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target)) {
-        setIsModelDropdownOpen(false);
-      }
-    };
-    if (isModelDropdownOpen) {
-      document.addEventListener('mousedown', handleOutsideClick);
-      document.addEventListener('touchstart', handleOutsideClick);
+  const updateDropdownPos = () => {
+    if (typeof window === 'undefined') return;
+    setIsMobile(window.innerWidth < 640);
+    if (modelButtonRef.current) {
+      const rect = modelButtonRef.current.getBoundingClientRect();
+      const popoverWidth = 320;
+      const popoverHeight = 440;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const top = (spaceBelow < popoverHeight && rect.top > popoverHeight)
+        ? Math.max(12, rect.top - popoverHeight - 8)
+        : Math.max(12, Math.min(rect.bottom + 8, window.innerHeight - popoverHeight - 12));
+      const right = Math.max(12, Math.min(window.innerWidth - rect.right, window.innerWidth - popoverWidth - 12));
+      setDropdownPos({ top, right });
     }
+  };
+
+  useEffect(() => {
+    if (!isModelDropdownOpen) return;
+    updateDropdownPos();
+    const handleScrollOrResize = () => updateDropdownPos();
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsModelDropdownOpen(false);
+    };
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('touchstart', handleOutsideClick);
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isModelDropdownOpen]);
 
@@ -395,7 +417,7 @@ export function ChatView({
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 bg-paper relative overflow-hidden select-text">
       {/* Ask Marvin Top Bar: Greeting & Context Workspace Pills */}
-      <div className="px-3 py-2 sm:px-4 sm:py-2.5 border-b border-edge bg-panel/60 backdrop-blur-md flex items-center justify-between gap-2 shrink-0">
+      <div className="px-3 py-2 sm:px-4 sm:py-2.5 border-b border-edge bg-panel/60 backdrop-blur-md flex items-center justify-between gap-2 shrink-0 relative z-30">
         {/* Left: Greeting & Status */}
         <div className="flex items-center gap-2 min-w-0">
           <div className="min-w-0">
@@ -427,11 +449,30 @@ export function ChatView({
 
         {/* Right: Model & Reasoning Selector, AI Usage Counter, Subagent Inspector & Verbose Mode */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Interactive Model & Reasoning Quality Selector Pill */}
-          <div className="relative" ref={modelDropdownRef}>
+          {/* Refresh / Sync Chat & Status Button */}
+          {isAdmin && onRefreshChats && (
             <button
               type="button"
-              onClick={() => setIsModelDropdownOpen((prev) => !prev)}
+              onClick={onRefreshChats}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-[10px] text-xs font-mono font-medium transition-all border cursor-pointer bg-sunken border-edge text-muted hover:text-ink hover:border-accent/40 disabled:opacity-50 shadow-v2-sm"
+              title={ct.refreshChatsTooltip || (language === 'es' ? 'Refrescar chat y sincronizar' : 'Refresh chat & sync')}
+              aria-label={ct.refreshChatsTooltip || (language === 'es' ? 'Refrescar chat y sincronizar' : 'Refresh chat & sync')}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-accent' : ''}`} />
+              <span className="hidden md:inline">{ct.refreshBtn || (language === 'es' ? 'Sincronizar' : 'Sync')}</span>
+            </button>
+          )}
+
+          {/* Interactive Model & Reasoning Quality Selector Pill */}
+          <div className="relative">
+            <button
+              ref={modelButtonRef}
+              type="button"
+              onClick={() => {
+                updateDropdownPos();
+                setIsModelDropdownOpen((prev) => !prev);
+              }}
               className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-[10px] text-xs font-mono font-medium transition-all border cursor-pointer bg-sunken border-edge text-ink hover:border-accent/40 shadow-v2-sm"
               title={ct.modelSelectorLabel || 'Modelo y Razonamiento'}
               aria-expanded={isModelDropdownOpen}
@@ -453,117 +494,155 @@ export function ChatView({
               <ChevronDown className={`w-3 h-3 text-muted shrink-0 transition-transform duration-200 ${isModelDropdownOpen ? 'rotate-180 text-accent' : ''}`} />
             </button>
 
-            {/* Model & Reasoning Popover Dropdown */}
-            {isModelDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 z-50 w-72 sm:w-80 p-3 rounded-2xl bg-panel/95 border border-edge shadow-2xl backdrop-blur-xl animate-fadeIn space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-edge/60">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
-                    <Sparkles className="w-3.5 h-3.5 text-accent" />
-                    <span>{ct.modelSelectorLabel || 'Modelo y Razonamiento'}</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold">
-                    ⏱️ 2h Timeout
-                  </span>
-                </div>
+            {/* Model & Reasoning Popover / Modal Dialog (mounted via Portal to escape all stacking contexts) */}
+            {isModelDropdownOpen &&
+              typeof document !== 'undefined' &&
+              createPortal(
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 z-[9998] bg-black/60 sm:bg-black/25 backdrop-blur-xs animate-fadeIn transition-opacity"
+                    onClick={() => setIsModelDropdownOpen(false)}
+                    aria-hidden="true"
+                  />
 
-                {/* Model Selection */}
-                <div className="space-y-1.5">
-                  <span className="text-[10.5px] font-mono text-muted uppercase tracking-wider block">
-                    {ct.modelLabel || 'Modelo de IA'}
-                  </span>
-                  <div className="space-y-1">
-                    {MODEL_OPTIONS.map((m) => {
-                      const isSelected = selectedModel === m.id;
-                      return (
+                  {/* Popover / Modal Dialog */}
+                  <div
+                    ref={modelDropdownRef}
+                    style={
+                      !isMobile && dropdownPos
+                        ? {
+                            top: `${dropdownPos.top}px`,
+                            right: `${dropdownPos.right}px`,
+                          }
+                        : undefined
+                    }
+                    className={`fixed z-[9999] rounded-2xl bg-panel/95 border border-edge shadow-2xl backdrop-blur-xl animate-fadeIn space-y-3 text-ink select-none max-h-[85vh] overflow-y-auto [scrollbar-width:thin] ${
+                      isMobile
+                        ? 'inset-x-4 top-1/2 -translate-y-1/2 max-w-[360px] mx-auto p-4'
+                        : 'w-80 p-3.5'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-edge/60">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                        <Sparkles className="w-3.5 h-3.5 text-accent" />
+                        <span>{ct.modelSelectorLabel || 'Modelo y Razonamiento'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold">
+                          ⏱️ 2h Timeout
+                        </span>
                         <button
-                          key={m.id}
                           type="button"
-                          onClick={() => {
-                            onChangeModel && onChangeModel(m.id);
-                          }}
-                          className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all border cursor-pointer ${
-                            isSelected
-                              ? 'bg-accent/15 border-accent text-ink shadow-xs'
-                              : 'bg-paper/60 border-edge/50 hover:bg-sunken text-muted hover:text-ink'
+                          onClick={() => setIsModelDropdownOpen(false)}
+                          className="p-1 rounded-lg text-muted hover:text-ink hover:bg-sunken cursor-pointer transition-colors"
+                          title="Cerrar"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Model Selection */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10.5px] font-mono text-muted uppercase tracking-wider block">
+                        {ct.modelLabel || 'Modelo de IA'}
+                      </span>
+                      <div className="space-y-1">
+                        {MODEL_OPTIONS.map((m) => {
+                          const isSelected = selectedModel === m.id;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => {
+                                onChangeModel && onChangeModel(m.id);
+                              }}
+                              className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all border cursor-pointer ${
+                                isSelected
+                                  ? 'bg-accent/15 border-accent text-ink shadow-xs'
+                                  : 'bg-paper/60 border-edge/50 hover:bg-sunken text-muted hover:text-ink'
+                              }`}
+                            >
+                              <div className="min-w-0 pr-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-semibold text-ink truncate">{m.name}</span>
+                                  <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-sunken text-muted border border-edge/60">
+                                    {m.badge}
+                                  </span>
+                                </div>
+                                <div className="text-[10.5px] text-muted truncate">{m.provider}</div>
+                              </div>
+                              {isSelected && (
+                                <Check className="w-4 h-4 text-accent shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Thinking Effort Quality: Low, Medium, High */}
+                    <div className="pt-2 border-t border-edge/60 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10.5px] font-mono text-muted uppercase tracking-wider">
+                          {ct.thinkingEffort || 'Calidad de Pensamiento'}
+                        </span>
+                        <span className="text-[10px] font-mono text-accent uppercase font-bold">
+                          {thinkingEffort}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-sunken border border-edge">
+                        <button
+                          type="button"
+                          onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('low')}
+                          className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            thinkingEffort === 'low'
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs'
+                              : 'text-muted hover:text-ink'
                           }`}
                         >
-                          <div className="min-w-0 pr-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-semibold text-ink truncate">{m.name}</span>
-                              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-sunken text-muted border border-edge/60">
-                                {m.badge}
-                              </span>
-                            </div>
-                            <div className="text-[10.5px] text-muted truncate">{m.provider}</div>
-                          </div>
-                          {isSelected && (
-                            <Check className="w-4 h-4 text-accent shrink-0" />
-                          )}
+                          <span>🟢 Low</span>
                         </button>
-                      );
-                    })}
+
+                        <button
+                          type="button"
+                          onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('medium')}
+                          className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            thinkingEffort === 'medium'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-xs'
+                              : 'text-muted hover:text-ink'
+                          }`}
+                        >
+                          <span>🟡 Med</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('high')}
+                          className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            thinkingEffort === 'high'
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-xs'
+                              : 'text-muted hover:text-ink'
+                          }`}
+                        >
+                          <span>🟣 High</span>
+                        </button>
+                      </div>
+
+                      <p className="text-[10.5px] text-muted leading-tight">
+                        {thinkingEffort === 'high'
+                          ? (ct.thinkingHighDesc || 'Deep step-by-step reasoning for architecture and complex tasks.')
+                          : thinkingEffort === 'medium'
+                            ? (ct.thinkingMedDesc || 'Balanced reasoning with solid speed and technical depth.')
+                            : (ct.thinkingLowDesc || 'Minimal latency with fast, direct answers.')}
+                      </p>
+                    </div>
                   </div>
-                </div>
-
-                {/* Thinking Effort Quality: Low, Medium, High */}
-                <div className="pt-2 border-t border-edge/60 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10.5px] font-mono text-muted uppercase tracking-wider">
-                      {ct.thinkingEffort || 'Calidad de Pensamiento'}
-                    </span>
-                    <span className="text-[10px] font-mono text-accent uppercase font-bold">
-                      {thinkingEffort}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-sunken border border-edge">
-                    <button
-                      type="button"
-                      onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('low')}
-                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        thinkingEffort === 'low'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs'
-                          : 'text-muted hover:text-ink'
-                      }`}
-                    >
-                      <span>🟢 Low</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('medium')}
-                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        thinkingEffort === 'medium'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-xs'
-                          : 'text-muted hover:text-ink'
-                      }`}
-                    >
-                      <span>🟡 Med</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('high')}
-                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        thinkingEffort === 'high'
-                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-xs'
-                          : 'text-muted hover:text-ink'
-                      }`}
-                    >
-                      <span>🟣 High</span>
-                    </button>
-                  </div>
-
-                  <p className="text-[10.5px] text-muted leading-tight">
-                    {thinkingEffort === 'high'
-                      ? (ct.thinkingHighDesc || 'Deep step-by-step reasoning for architecture and complex tasks.')
-                      : thinkingEffort === 'medium'
-                        ? (ct.thinkingMedDesc || 'Balanced reasoning with solid speed and technical depth.')
-                        : (ct.thinkingLowDesc || 'Minimal latency with fast, direct answers.')}
-                  </p>
-                </div>
-              </div>
-            )}
+                </>,
+                document.body
+              )}
           </div>
 
           {/* Circular 5-hour quota counter & popover */}
