@@ -30,5 +30,15 @@
     "addedAt": "2026-10-24T23:40:26.110Z",
     "lastLogin": null,
     "updatedAt": "2026-10-24T23:41:49.167Z"
+  },
+  {
+    "email": "alexsiscg@gmail.com",
+    "name": "Alexsis CG",
+    "role": "admin",
+    "isOwner": false,
+    "canEditProjects": true,
+    "picture": null,
+    "addedAt": "2026-10-25T01:48:30.000Z",
+    "lastLogin": null
   }
 ]
