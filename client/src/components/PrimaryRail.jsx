@@ -31,21 +31,13 @@ export function PrimaryRail({
   currentUser,
   onOpenLogin,
   onLogout,
+  clockSeconds = 7420,
+  isClockRunning = true,
   t
 }) {
-  const [secondsElapsed, setSecondsElapsed] = useState(7420); // Simulated work session stopwatch
-  const [isTimerRunning, setIsTimerRunning] = useState(true);
 
   const isAdmin = currentUser?.role === 'admin';
   const tr = t.rail;
-
-  useEffect(() => {
-    if (!isTimerRunning) return;
-    const interval = setInterval(() => {
-      setSecondsElapsed((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isTimerRunning]);
 
   const formatTimer = (totalSeconds) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -81,6 +73,15 @@ export function PrimaryRail({
           badge: null
         },
         { divider: true },
+        {
+          id: 'clock',
+          label: tr.clock || 'Clock',
+          icon: Clock,
+          active: activeTab === 'clock',
+          onClick: () => onSelectTab('clock'),
+          badge: isClockRunning ? 'ON' : null,
+          badgeColor: 'bg-emerald-500/20 text-emerald-300 font-mono text-[10.5px]'
+        },
         {
           id: 'development',
           label: tr.development || 'Developer',
@@ -213,24 +214,33 @@ export function PrimaryRail({
 
       {/* Marvin Clock-in Card */}
       {!isCollapsed ? (
-        <div className="mx-0.5 my-2.5 p-2 rounded-[12px] bg-panel border border-edge shadow-v2-sm">
+        <div
+          onClick={() => onSelectTab('clock')}
+          className="mx-0.5 my-2.5 p-2 rounded-[12px] bg-panel border border-edge shadow-v2-sm hover:border-accent/40 cursor-pointer transition-all group"
+          title="Clic para gestionar fichaje (Clock)"
+        >
           <div className="flex items-center justify-between gap-1 text-[11px] text-muted mb-1">
             <span className="flex items-center gap-1.5">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              {tr.clockedIn}
+              <span
+                className={`inline-block w-2 h-2 rounded-full ${
+                  isClockRunning ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+              {isClockRunning ? tr.clockedIn : (tr.clockedOut || 'Detenido')}
             </span>
             <span className="font-mono text-[11px] text-accent font-medium">
-              {formatTimer(secondsElapsed)}
+              {formatTimer(clockSeconds)}
             </span>
           </div>
           <div className="flex items-center justify-between pt-1 border-t border-edge/60">
-            <span className="text-[12px] font-medium text-ink truncate">
-              {currentUser?.name || 'Rodrigo García'}
+            <span className="text-[12px] font-medium text-ink truncate group-hover:text-accent transition-colors">
+              {currentUser?.name || 'Luis Garcia'}
             </span>
             <a
               href="https://therodrigo.com"
               target="_blank"
               rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
               className="text-muted hover:text-accent p-0.5 transition-colors"
               title="therodrigo.com"
             >
@@ -240,10 +250,17 @@ export function PrimaryRail({
         </div>
       ) : (
         <div className="my-2 flex justify-center">
-          <span
-            className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"
-            title={`${tr.clockedIn}: ${formatTimer(secondsElapsed)}`}
-          />
+          <button
+            onClick={() => onSelectTab('clock')}
+            className="cursor-pointer"
+            title={`${isClockRunning ? tr.clockedIn : (tr.clockedOut || 'Detenido')}: ${formatTimer(clockSeconds)}`}
+          >
+            <span
+              className={`block w-2.5 h-2.5 rounded-full ${
+                isClockRunning ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+              }`}
+            />
+          </button>
         </div>
       )}
 

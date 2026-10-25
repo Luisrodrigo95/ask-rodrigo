@@ -894,56 +894,58 @@ export function CalendarView({
 
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-paper text-ink overflow-hidden select-none">
-      {/* 1. Header Toolbar (Ask Marvin Agenda Style) */}
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-edge bg-panel/70 px-4 py-2.5 backdrop-blur-md">
-        {/* Left: Title & Navigation */}
-        <div className="flex items-center gap-3">
-          <h1 className="font-semibold text-[19px] tracking-tight text-ink">
-            {clt.title || 'Calendar'}
-          </h1>
+    <div className="flex-1 flex flex-col h-full bg-paper text-ink overflow-hidden select-text">
+      {/* 1. Header Toolbar (Responsive for iPhone & Desktop) */}
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-edge bg-panel/85 px-3 sm:px-4 py-2 sm:py-2.5 backdrop-blur-md shrink-0">
+        {/* Left Row on Mobile: Title & Navigation */}
+        <div className="flex items-center justify-between sm:justify-start gap-2.5 w-full sm:w-auto">
+          <div className="flex items-center gap-2">
+            <h1 className="font-semibold text-base sm:text-[19px] tracking-tight text-ink">
+              {clt.title || 'Calendar'}
+            </h1>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handlePrev}
-              className="rounded-[8px] p-1.5 text-muted hover:text-ink hover:bg-sunken border border-edge/60 transition-colors cursor-pointer"
-              title="Previous"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleToday}
-              className="rounded-[8px] border border-edge/80 px-2.5 py-1 text-xs font-medium text-ink hover:bg-sunken transition-colors cursor-pointer"
-            >
-              {clt.todayBtn}
-            </button>
-            <button
-              onClick={handleNext}
-              className="rounded-[8px] p-1.5 text-muted hover:text-ink hover:bg-sunken border border-edge/60 transition-colors cursor-pointer"
-              title="Next"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handlePrev}
+                className="rounded-[8px] p-1 sm:p-1.5 text-muted hover:text-ink hover:bg-sunken border border-edge/60 transition-colors cursor-pointer"
+                title="Previous"
+              >
+                <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+              <button
+                onClick={handleToday}
+                className="rounded-[8px] border border-edge/80 px-2 py-0.5 sm:px-2.5 sm:py-1 text-xs font-medium text-ink hover:bg-sunken transition-colors cursor-pointer"
+              >
+                {clt.todayBtn}
+              </button>
+              <button
+                onClick={handleNext}
+                className="rounded-[8px] p-1 sm:p-1.5 text-muted hover:text-ink hover:bg-sunken border border-edge/60 transition-colors cursor-pointer"
+                title="Next"
+              >
+                <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+            </div>
           </div>
 
-          <span className="text-[13px] font-medium text-ink font-mono sm:inline">
+          <span className="text-xs sm:text-[13px] font-medium text-ink font-mono truncate max-w-[140px] sm:max-w-none">
             {dateRangeLabel}
           </span>
         </div>
 
-        {/* Right: View Switcher, Search, Meeting & Event CTA */}
-        <div className="flex items-center gap-2">
+        {/* Right Row: View Switchers, Search & CTA */}
+        <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 w-full sm:w-auto overflow-x-auto [scrollbar-width:none]">
           {/* Mobile Filter Toggle */}
           <button
             onClick={() => setShowSidebarMobile(!showSidebarMobile)}
-            className="md:hidden p-1.5 rounded-[8px] border border-edge text-muted hover:text-ink"
+            className="md:hidden p-1.5 rounded-[8px] border border-edge text-muted hover:text-ink shrink-0"
             title="Filter Layers"
           >
             <Filter className="w-3.5 h-3.5" />
           </button>
 
           {/* Month / Week / Day Switcher */}
-          <div className="flex overflow-hidden rounded-[10px] border border-edge text-xs bg-sunken p-0.5">
+          <div className="flex overflow-hidden rounded-[10px] border border-edge text-xs bg-sunken p-0.5 shrink-0">
             {[
               { id: 'month', label: clt.viewMonth },
               { id: 'week', label: clt.viewWeek },
@@ -952,7 +954,7 @@ export function CalendarView({
               <button
                 key={v.id}
                 onClick={() => setViewMode(v.id)}
-                className={`px-2.5 py-1 rounded-[8px] text-[11.5px] font-medium transition-colors cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-1 rounded-[8px] text-[11px] sm:text-[11.5px] font-medium transition-colors cursor-pointer ${
                   viewMode === v.id
                     ? 'bg-accent text-white font-semibold shadow-v2-sm'
                     : 'text-muted hover:text-ink'
@@ -965,7 +967,7 @@ export function CalendarView({
 
           {/* Orientation Switcher for Week View */}
           {viewMode === 'week' && (
-            <div className="flex items-center overflow-hidden rounded-[10px] border border-edge text-xs bg-sunken p-0.5 shadow-xs">
+            <div className="flex items-center overflow-hidden rounded-[10px] border border-edge text-xs bg-sunken p-0.5 shadow-xs shrink-0">
               <button
                 onClick={() => handleOrientationChange('days-cols')}
                 className={`flex items-center gap-1.5 px-2 py-1 rounded-[8px] text-[11px] font-medium transition-all cursor-pointer ${
@@ -973,7 +975,7 @@ export function CalendarView({
                     ? 'bg-accent text-white font-semibold shadow-xs'
                     : 'text-muted hover:text-ink'
                 }`}
-                title="Cabecera: Días (fecha, mes, etiqueta) | Columna izquierda: Horas"
+                title="Cabecera: Días | Columna izquierda: Horas"
               >
                 <Columns3 className="w-3.5 h-3.5" />
                 <span className="hidden lg:inline">Cabecera Días</span>
@@ -994,7 +996,7 @@ export function CalendarView({
           )}
 
           {/* Quick Search Input */}
-          <div className="relative hidden sm:block">
+          <div className="relative hidden lg:block">
             <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
@@ -1013,39 +1015,39 @@ export function CalendarView({
             )}
           </div>
 
-          {/* Quick Instant Meeting Button (Ask Marvin Style) */}
+          {/* Quick Instant Meeting Button (Desktop only) */}
           <a
             href="https://meet.google.com/new"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 rounded-[10px] bg-sunken border border-edge/80 px-2.5 py-1.5 text-xs font-medium text-ink hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+            className="hidden sm:flex items-center gap-1.5 rounded-[10px] bg-sunken border border-edge/80 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-medium text-ink hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm shrink-0"
             title="Start instant video meeting"
           >
             <Zap className="w-3.5 h-3.5 text-accent" />
-            <span className="hidden lg:inline">Start Meeting</span>
+            <span className="hidden lg:inline">Meeting</span>
           </a>
 
           {/* iCal Subscription Button */}
           <button
             onClick={() => setShowIcsModal(true)}
-            className="flex items-center gap-1.5 rounded-[10px] bg-sunken border border-edge/80 px-2.5 py-1.5 text-xs font-medium text-ink hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-[10px] bg-sunken border border-edge/80 text-xs font-medium text-ink hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm shrink-0"
             title="Suscripción iCal (.ics) & Google Calendar"
           >
             <Radio className="w-3.5 h-3.5 text-accent" />
-            <span className="hidden sm:inline">iCal Feed</span>
+            <span className="text-[11px] font-mono sm:text-xs">iCal</span>
           </button>
 
           {/* New Event Button (Admin Only) */}
           {isAdmin ? (
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-1.5 rounded-[10px] bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent/90 transition-all shadow-v2-sm active:scale-95 cursor-pointer"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[10px] bg-accent text-xs font-semibold text-white hover:bg-accent/90 transition-all shadow-v2-sm active:scale-95 cursor-pointer shrink-0"
             >
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{clt.newEvent}</span>
             </button>
           ) : (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[10px] bg-sunken border border-edge text-muted text-xs">
+            <div className="flex items-center gap-1 px-2 py-1 rounded-[10px] bg-sunken border border-edge text-muted text-xs shrink-0">
               <Lock className="w-3 h-3 text-amber-400" />
               <span className="hidden sm:inline">Read-Only</span>
             </div>
@@ -1661,8 +1663,8 @@ export function CalendarView({
 
       {/* 3. New Event Creation Modal (Admin Only) */}
       {isAdmin && showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="w-full max-w-md rounded-[18px] bg-panel border border-edge shadow-v2-md p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-fadeIn safe-top safe-bottom">
+          <div className="w-full max-w-md max-h-[88dvh] overflow-y-auto rounded-[18px] bg-panel border border-edge shadow-v2-md p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-edge/60 pb-3">
               <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
                 <CalendarIcon className="w-4 h-4 text-accent" />

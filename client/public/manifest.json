@@ -1,0 +1,25 @@
+{
+  "name": "Ask Rodrigo",
+  "short_name": "Ask Rodrigo",
+  "description": "Personal AI Engineering Workstation and Knowledge Assistant",
+  "start_url": "/ask-rodrigo/",
+  "scope": "/ask-rodrigo/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#080d1a",
+  "theme_color": "#080d1a",
+  "icons": [
+    {
+      "src": "/ask-rodrigo/rodrigo-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/ask-rodrigo/rodrigo-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -130,13 +130,22 @@ export function logout() {
 /**
  * Sends a chat message via standard POST
  */
-export async function sendChatMessage(message, conversationId = null, engine = 'agy', history = []) {
+export async function sendChatMessage(message, conversationId = null, engine = 'agy', history = [], options = {}) {
+  const payload = {
+    message,
+    conversationId,
+    engine,
+    history,
+    model: options.model,
+    effort: options.effort
+  };
+
   const response = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: getAuthHeaders({
       'Content-Type': 'application/json'
     }),
-    body: JSON.stringify({ message, conversationId, engine, history })
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -150,8 +159,12 @@ export async function sendChatMessage(message, conversationId = null, engine = '
 /**
  * Connects to the SSE stream for real-time token-by-token streaming
  */
-export function streamChatMessage(message, conversationId, callbacks, workspace = 'normal') {
+export function streamChatMessage(message, conversationId, callbacks, options = 'normal') {
   const { onInit, onDelta, onDone, onError, onStatus, onTool } = callbacks;
+
+  const workspace = typeof options === 'string' ? options : (options?.workspace || 'normal');
+  const model = typeof options === 'object' ? options?.model : undefined;
+  const effort = typeof options === 'object' ? options?.effort : undefined;
 
   const url = `${API_BASE}/chat/stream`;
   const controller = new AbortController();
@@ -159,7 +172,7 @@ export function streamChatMessage(message, conversationId, callbacks, workspace 
   fetch(url, {
     method: 'POST',
     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ message, conversationId, workspace }),
+    body: JSON.stringify({ message, conversationId, workspace, model, effort }),
     signal: controller.signal
   })
     .then(async (response) => {

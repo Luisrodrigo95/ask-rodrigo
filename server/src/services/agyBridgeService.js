@@ -35,19 +35,33 @@ export async function executeAgyPrompt(message, options = {}) {
     onDelta,
     onInit,
     onToolUpdate,
-    timeoutMs = 900000, // 15 minutes per turn
-    cwd = AGY_HOME
+    timeoutMs = 7200000, // 2 hours per turn
+    cwd = AGY_HOME,
+    model,
+    effort,
+    isGuest = false
   } = options;
 
   return new Promise((resolve, reject) => {
     let finalPrompt = message;
-    if (message && message.length > 50000) {
+
+    if (isGuest) {
+      finalPrompt = `[SYSTEM INSTRUCTION - GUEST USER (STRICT READ-ONLY MODE)]:\n` +
+        `- You are chatting with a Guest user on Ask-Rodrigo.\n` +
+        `- Language: You MUST reply in English by default unless the guest explicitly requests another language.\n` +
+        `- Security Boundary: You are in STRICT READ-ONLY MODE. Under NO circumstances are you allowed to create, edit, overwrite, modify, or delete any files, code, or directories in any of Rodrigo's projects or on the server. Do not execute any modification commands (no file writes, no git commit/push, no sed, no rm, no touch, no npm install, no systemctl, no write tools).\n` +
+        `- If the guest asks you to write code to a file or modify any part of the system or projects, politely refuse in English: "I have read-only permissions as this is a guest session. I cannot modify files or project code, but I can review, explain, and guide you through anything."\n` +
+        `- You CAN inspect, read files, explain architecture, discuss Rodrigo's work, skills, and portfolio projects in English.\n\n` +
+        `Guest Inquiry:\n${finalPrompt}`;
+    }
+
+    if (finalPrompt && finalPrompt.length > 50000) {
       // Auto-offload huge prompt texts to /home/bombi/uploads to prevent CLI argument overflow (spawn E2BIG)
       try {
         const uploadDir = '/home/bombi/uploads';
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
         const autoFile = path.join(uploadDir, `prompt_${Date.now()}.txt`);
-        fs.writeFileSync(autoFile, message, 'utf8');
+        fs.writeFileSync(autoFile, finalPrompt, 'utf8');
         try {
           fs.chmodSync(autoFile, 0o664);
           fs.chownSync(autoFile, 1001, 1001);
@@ -58,11 +72,47 @@ export async function executeAgyPrompt(message, options = {}) {
       }
     }
 
+    // Resolve model and thinking effort parameters safely for Antigravity CLI
+    let cleanEffort = (effort || 'high').toLowerCase().trim();
+    if (!['low', 'medium', 'high'].includes(cleanEffort)) {
+      cleanEffort = 'high';
+    }
+
+    let resolvedModel = 'gemini-3.8-flash-high';
+    const rawModel = (model || '').toLowerCase().trim();
+
+    if (rawModel.includes('opus')) {
+      resolvedModel = 'claude-opus-4-6-thinking';
+    } else if (rawModel.includes('sonnet')) {
+      resolvedModel = 'claude-sonnet-4-6';
+    } else if (rawModel.includes('gpt') || rawModel.includes('120b')) {
+      resolvedModel = 'gpt-oss-120b-medium';
+    } else {
+      // Gemini 3.8 Flash (Low / Medium / High)
+      resolvedModel = `gemini-3.8-flash-${cleanEffort}`;
+    }
+
     // Pass input format as text and stream prompt through stdin to avoid Linux MAX_ARG_STRLEN (E2BIG)
-    const args = ['--input-format', 'text', '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+    const args = [
+      '--input-format', 'text',
+      '--output-format', 'stream-json',
+      '--dangerously-skip-permissions',
+      '--model', resolvedModel
+    ];
+
+    if (!resolvedModel.includes('-low') && !resolvedModel.includes('-medium') && !resolvedModel.includes('-high')) {
+      args.push('--effort', cleanEffort);
+    }
+
+    if (isGuest) {
+      args.push('--sandbox');
+    }
+
     if (conversationId && typeof conversationId === 'string' && conversationId.trim() !== '') {
       args.push('--conversation', conversationId.trim());
     }
+
+    const effectiveCwd = isGuest ? '/var/www/my-portfolio' : (cwd || AGY_HOME);
 
     const env = {
       ...process.env,
@@ -76,7 +126,7 @@ export async function executeAgyPrompt(message, options = {}) {
     let timedOut = false;
 
     const child = spawn(AGY_BIN, args, {
-      cwd,
+      cwd: effectiveCwd,
       env,
       stdio: ['pipe', 'pipe', 'pipe']
     });
@@ -183,7 +233,7 @@ export async function executeAgyPrompt(message, options = {}) {
         duration: resultMeta ? resultMeta.duration_seconds : null,
         usage: resultMeta ? resultMeta.usage : null,
         status: (resultMeta && resultMeta.status) || (code === 0 ? 'SUCCESS' : 'COMPLETED_WITH_WARNINGS'),
-        engine: 'AGy-cli Native (Antigravity)'
+        engine: `AGy-cli (${resolvedModel})`
       });
     });
   });

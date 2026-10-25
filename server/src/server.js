@@ -139,8 +139,8 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[Ask-Rodrigo] Node Environment: ${process.env.NODE_ENV || 'production'}`);
 });
 
-// Configure 15-minute timeout for extended AGy-cli tasks
-server.setTimeout(900000);
+// Configure 2-hour timeout for extended AGy-cli tasks
+server.setTimeout(7200000); // 2 hours = 7,200,000 ms
 server.keepAliveTimeout = 65000;
 
 // Graceful shutdown handlers to prevent abrupt SSE drop on PM2 reloads

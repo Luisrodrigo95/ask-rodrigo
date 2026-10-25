@@ -24,7 +24,7 @@ import {
  */
 export async function chatHandler(req, res) {
   try {
-    const { message, conversationId, engine = 'agy', history } = req.body;
+    const { message, conversationId, engine = 'agy', history, model, effort } = req.body;
     const userRole = req.user?.role || 'guest';
 
     if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -33,14 +33,30 @@ export async function chatHandler(req, res) {
 
     const cleanMsg = message.trim();
 
-    // 1. Guest Mode: Strictly restricted to safe Knowledge AI
+    // 1. Guest Mode: Routed to AGy-cli Bridge in strict read-only mode (English default, cannot modify projects)
     if (userRole !== 'admin') {
-      const response = await generateChatResponse(cleanMsg, history || [], { isGuest: true });
-      return res.json({
-        ...response,
-        conversationId: 'guest-session',
-        role: 'guest'
-      });
+      try {
+        const agyResult = await executeAgyPrompt(cleanMsg, {
+          conversationId,
+          isGuest: true,
+          cwd: '/var/www/my-portfolio',
+          model,
+          effort
+        });
+        invalidateUsageCache();
+        return res.json({
+          ...agyResult,
+          role: 'guest'
+        });
+      } catch (errAgy) {
+        console.warn('[ChatController] AGy-cli error for guest, fallback:', errAgy.message);
+        const fallback = await generateChatResponse(cleanMsg, history || [], { isGuest: true, model, effort });
+        return res.json({
+          ...fallback,
+          conversationId: 'guest-session',
+          role: 'guest'
+        });
+      }
     }
 
     // 2. Admin Mode: Full AGy-cli Bridge execution
@@ -50,7 +66,7 @@ export async function chatHandler(req, res) {
         if (!req.user?.canEditProjects && !req.user?.isOwner) {
           effectivePrompt = `[RESTRICCIÓN DE SEGURIDAD]: El usuario actual (${req.user?.name} <${req.user?.email}>) tiene rol de Colaborador con permiso de SOLO LECTURA sobre los proyectos del servidor. NO tiene autorización para editar, modificar, borrar o sobreescribir archivos en /var/www ni proyectos existentes hasta que Rodrigo lo autorice expresamente. Puedes responder sus dudas, explicar el código o crear archivos en /home/bombi/uploads, pero NUNCA modifiques el código existente.\n\nConsulta del usuario:\n${cleanMsg}`;
         }
-        const agyResult = await executeAgyPrompt(effectivePrompt, { conversationId });
+        const agyResult = await executeAgyPrompt(effectivePrompt, { conversationId, model, effort });
         invalidateUsageCache();
         return res.json({
           ...agyResult,
@@ -58,7 +74,7 @@ export async function chatHandler(req, res) {
         });
       } catch (errAgy) {
         console.warn('[ChatController] AGy-cli error for admin, using fallback:', errAgy.message);
-        const fallback = await generateChatResponse(cleanMsg, history || [], { isGuest: false });
+        const fallback = await generateChatResponse(cleanMsg, history || [], { isGuest: false, model, effort });
         return res.json({
           ...fallback,
           conversationId: conversationId || null,
@@ -69,7 +85,7 @@ export async function chatHandler(req, res) {
     }
 
     // Direct knowledge engine for admin if requested
-    const response = await generateChatResponse(cleanMsg, history || [], { isGuest: false });
+    const response = await generateChatResponse(cleanMsg, history || [], { isGuest: false, model, effort });
     return res.json({
       ...response,
       conversationId: conversationId || null,
@@ -102,6 +118,8 @@ export async function chatStreamHandler(req, res) {
   const message = req.method === 'POST' ? req.body.message : req.query.message;
   const conversationId = req.method === 'POST' ? req.body.conversationId : req.query.conversationId;
   const workspace = req.method === 'POST' ? req.body.workspace : req.query.workspace;
+  const model = req.method === 'POST' ? req.body.model : req.query.model;
+  const effort = req.method === 'POST' ? req.body.effort : req.query.effort;
   const userRole = req.user?.role || 'guest';
 
   if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -141,36 +159,65 @@ export async function chatStreamHandler(req, res) {
   });
 
   try {
-    // 1. Guest Mode SSE: Stream from Knowledge AI (zero bash/tool execution)
+    // 1. Guest Mode SSE: Stream from AGy-cli Bridge in strict read-only sandbox mode (English default)
     if (userRole !== 'admin') {
-      sendEvent('init', { conversationId: 'guest-session' });
-      sendEvent('status', { message: 'Consultando base de conocimientos de Rodrigo...' });
+      sendEvent('init', { conversationId: conversationId || 'guest-session' });
+      sendEvent('status', { message: 'Connecting to Ask Rodrigo AI (Guest Mode)...' });
 
-      const knowledgeRes = await generateChatResponse(message.trim(), [], { isGuest: true });
-      const fullText = knowledgeRes.reply || '';
+      try {
+        let activeConvId = conversationId || null;
+        const result = await executeAgyPrompt(message.trim(), {
+          conversationId: activeConvId,
+          isGuest: true,
+          cwd: '/var/www/my-portfolio',
+          model,
+          effort,
+          onInit: (assignedId) => {
+            activeConvId = assignedId;
+            sendEvent('init', { conversationId: assignedId });
+          },
+          onDelta: (textChunk) => {
+            sendEvent('delta', { text: textChunk });
+          },
+          onToolUpdate: (toolEvent) => {
+            sendEvent('tool', toolEvent);
+          }
+        });
 
-      // Stream text in small natural chunks
-      const chunkSize = 25;
-      for (let i = 0; i < fullText.length; i += chunkSize) {
-        const slice = fullText.slice(i, i + chunkSize);
-        sendEvent('delta', { text: slice });
-        // Minimal delay for smooth visual typewriter feel
-        await new Promise(r => setTimeout(r, 15));
+        invalidateUsageCache();
+        sendEvent('done', {
+          conversationId: result.conversationId || activeConvId || 'guest-session',
+          duration: result.duration,
+          usage: result.usage,
+          status: result.status,
+          engine: result.engine || 'AGy (Guest Read-Only)',
+          role: 'guest'
+        });
+        res.end();
+        return;
+      } catch (errGuest) {
+        console.warn('[ChatController] Guest AGy stream error, falling back:', errGuest.message);
+        const knowledgeRes = await generateChatResponse(message.trim(), [], { isGuest: true, model, effort });
+        const fullText = knowledgeRes.reply || '';
+        const chunkSize = 25;
+        for (let i = 0; i < fullText.length; i += chunkSize) {
+          const slice = fullText.slice(i, i + chunkSize);
+          sendEvent('delta', { text: slice });
+          await new Promise(r => setTimeout(r, 15));
+        }
+        invalidateUsageCache();
+        sendEvent('done', {
+          conversationId: 'guest-session',
+          status: 'done',
+          engine: knowledgeRes.engine || 'Knowledge AI (Guest Fallback)',
+          role: 'guest'
+        });
+        res.end();
+        return;
       }
-
-      invalidateUsageCache();
-    sendEvent('done', {
-        conversationId: 'guest-session',
-        status: 'done',
-        engine: 'Knowledge AI (Modo Invitado)',
-        role: 'guest'
-      });
-
-      res.end();
-      return;
     }
 
-    // 2. Admin Mode SSE: Native AGy-cli Bridge stream with workspace cwd
+    // 2. Admin Mode SSE: Native AGy-cli Bridge stream with workspace cwd, model, and effort
     const targetCwd = (workspace && WORKSPACE_MAP[workspace.toLowerCase()]) || '/home/bombi';
     sendEvent('status', { message: `Iniciando turno en AGy-cli (${workspace || 'normal'} -> ${targetCwd})...` });
 
@@ -184,6 +231,8 @@ export async function chatStreamHandler(req, res) {
     const result = await executeAgyPrompt(effectiveMessage, {
       conversationId: activeConvId,
       cwd: targetCwd,
+      model,
+      effort,
       onInit: (assignedId) => {
         activeConvId = assignedId;
         sendEvent('init', { conversationId: assignedId });

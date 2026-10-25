@@ -17,7 +17,9 @@ import {
   Unlock,
   CheckCircle2,
   AlertCircle,
-  Terminal
+  Terminal,
+  Sparkles,
+  Brain
 } from 'lucide-react';
 import {
   fetchUsers,
@@ -25,6 +27,13 @@ import {
   updateUserPermission,
   deleteAuthorizedUser
 } from '../services/api.js';
+
+export const SETTINGS_MODELS = [
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'Google DeepMind', badge: 'Recomendado', desc: 'Rápido, multimodal y alta precisión' },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'Anthropic', badge: 'Thinking', desc: 'Razonamiento avanzado paso a paso' },
+  { id: 'claude-opus-4-6-thinking', name: 'Claude Opus 4.6', provider: 'Anthropic', badge: 'Deep Thinking', desc: 'Máxima profundidad analítica' },
+  { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B', provider: 'Open Source', badge: '120B Medium', desc: 'Modelo abierto de alto desempeño' }
+];
 
 export function SettingsModal({
   isOpen,
@@ -39,6 +48,10 @@ export function SettingsModal({
   onSaveGoogleClientId,
   verboseMode,
   onToggleVerboseMode,
+  selectedModel = 'gemini-3.8-flash',
+  onChangeModel,
+  thinkingEffort = 'high',
+  onChangeThinkingEffort,
   health,
   currentUser,
   t
@@ -141,8 +154,8 @@ export function SettingsModal({
   const st = t.settings;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn safe-top safe-bottom">
+      <div className="relative w-full max-w-xl max-h-[88dvh] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -152,22 +165,108 @@ export function SettingsModal({
         </button>
 
         {/* Header */}
-        <div className="p-6 pb-4 border-b border-slate-800/80 flex items-center gap-3 bg-gradient-to-b from-slate-800/40 to-transparent">
-          <div className="w-11 h-11 rounded-2xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400 shadow-sm">
+        <div className="p-5 sm:p-6 pb-4 border-b border-slate-800/80 flex items-center gap-3 bg-gradient-to-b from-slate-800/40 to-transparent shrink-0">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-400 shadow-sm shrink-0">
             <Settings className="w-5 h-5" />
           </div>
-          <div>
-            <h2 className="text-lg font-bold text-white tracking-tight">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
               {st.title}
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-400 mt-0.5 truncate">
               {st.subtitle}
             </p>
           </div>
         </div>
 
         {/* Body Content */}
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-6 flex-1 overflow-y-auto">
+          {/* 0. AI Model & Thinking Quality Preference */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-teal-400 text-xs font-semibold uppercase tracking-wider font-mono">
+              <Sparkles className="w-4 h-4" />
+              <span>Modelo de IA y Calidad de Pensamiento</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              Elige el modelo que procesará tus instrucciones en Antigravity CLI y el nivel de esfuerzo de pensamiento (Medium o High).
+            </p>
+
+            {/* Model Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {SETTINGS_MODELS.map((m) => {
+                const isSelected = selectedModel === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onChangeModel && onChangeModel(m.id)}
+                    className={`p-3 rounded-2xl text-left transition-all border cursor-pointer ${
+                      isSelected
+                        ? 'bg-teal-500/15 border-teal-500/60 ring-1 ring-teal-500/30 shadow-xs'
+                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-white">{m.name}</span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                        {m.badge}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-400 leading-tight">{m.desc}</p>
+                    <div className="mt-2 flex items-center justify-between text-[10px] font-mono text-slate-500">
+                      <span>{m.provider}</span>
+                      {isSelected && <span className="text-teal-400 font-bold flex items-center gap-1"><Check className="w-3 h-3" /> Activo</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Thinking Effort Segmented Control */}
+            <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                  <Brain className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Calidad de Pensamiento (Thinking Effort)</span>
+                </span>
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                  thinkingEffort === 'high' ? 'bg-purple-500/20 text-purple-300' : 'bg-amber-500/20 text-amber-300'
+                }`}>
+                  {thinkingEffort === 'high' ? 'High Reasoning' : 'Medium Reasoning'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('medium')}
+                  className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    thinkingEffort === 'medium'
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-xs'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span className="text-xs font-bold">⚡ Medium</span>
+                  <span className="text-[10px] text-slate-400 text-center mt-0.5">Equilibrado y rápido</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('high')}
+                  className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    thinkingEffort === 'high'
+                      ? 'bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-xs'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span className="text-xs font-bold">🧠 High</span>
+                  <span className="text-[10px] text-slate-400 text-center mt-0.5">Razonamiento profundo</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-800/80"></div>
           {/* 1. Language Preference */}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-teal-400 text-xs font-semibold uppercase tracking-wider font-mono">

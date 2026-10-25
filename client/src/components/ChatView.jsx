@@ -22,13 +22,25 @@ import {
   PanelRight,
   PanelRightClose,
   Image as ImageIcon,
-  MessageSquare
+  MessageSquare,
+  Calendar,
+  Activity,
+  ChevronDown,
+  Zap,
+  Brain
 } from 'lucide-react';
 import { marked } from 'marked';
 import { uploadAdminFile } from '../services/api.js';
 import { UsageCounter } from './UsageCounter.jsx';
 import { ToolActionItem } from './ToolActionItem.jsx';
 import rodrigoIcon from '../assets/rodrigo-icon.png';
+
+export const MODEL_OPTIONS = [
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'Google DeepMind', badge: 'Recomendado', supportsEffort: true },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'Anthropic', badge: 'Thinking', supportsEffort: false },
+  { id: 'claude-opus-4-6-thinking', name: 'Claude Opus 4.6', provider: 'Anthropic', badge: 'Deep Thinking', supportsEffort: false },
+  { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B', provider: 'Open Source', badge: '120B Medium', supportsEffort: false }
+];
 
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return '0 B';
@@ -124,6 +136,10 @@ export function ChatView({
   verboseMode = false,
   onToggleVerboseMode,
   streamingTools = [],
+  selectedModel = 'gemini-3.8-flash',
+  onChangeModel,
+  thinkingEffort = 'high',
+  onChangeThinkingEffort,
   t
 }) {
   const [inputText, setInputText] = useState('');
@@ -132,6 +148,8 @@ export function ChatView({
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const modelDropdownRef = useRef(null);
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const isNearBottomRef = useRef(true);
@@ -139,6 +157,25 @@ export function ChatView({
   const fileInputRef = useRef(null);
   const draftsRef = useRef({});
   const prevConvIdRef = useRef(conversationId);
+
+  // Close model popover on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target)) {
+        setIsModelDropdownOpen(false);
+      }
+    };
+    if (isModelDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isModelDropdownOpen]);
+
+  const currentModelObj = MODEL_OPTIONS.find((m) => m.id === selectedModel) || MODEL_OPTIONS[0];
 
   const adjustTextareaHeight = () => {
     const el = inputRef.current;
@@ -395,8 +432,147 @@ export function ChatView({
           </div>
         </div>
 
-        {/* Right: AI Usage Counter & Subagent Inspector Toggle & Verbose Mode */}
-        <div className="flex items-center gap-2">
+        {/* Right: Model & Reasoning Selector, AI Usage Counter, Subagent Inspector & Verbose Mode */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Interactive Model & Reasoning Quality Selector Pill */}
+          <div className="relative" ref={modelDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsModelDropdownOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-[10px] text-xs font-mono font-medium transition-all border cursor-pointer bg-sunken border-edge text-ink hover:border-accent/40 shadow-v2-sm"
+              title={ct.modelSelectorLabel || 'Modelo y Razonamiento'}
+              aria-expanded={isModelDropdownOpen}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-accent shrink-0" />
+              <span className="font-semibold text-accent max-w-[85px] sm:max-w-none truncate">
+                {currentModelObj.name}
+              </span>
+              <span className="hidden sm:inline text-muted/60">·</span>
+              <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold ${
+                thinkingEffort === 'high'
+                  ? 'bg-purple-500/20 text-purple-300'
+                  : thinkingEffort === 'medium'
+                    ? 'bg-amber-500/20 text-amber-300'
+                    : 'bg-emerald-500/20 text-emerald-300'
+              }`}>
+                {thinkingEffort === 'high' ? 'High' : thinkingEffort === 'medium' ? 'Med' : 'Low'}
+              </span>
+              <ChevronDown className={`w-3 h-3 text-muted shrink-0 transition-transform duration-200 ${isModelDropdownOpen ? 'rotate-180 text-accent' : ''}`} />
+            </button>
+
+            {/* Model & Reasoning Popover Dropdown */}
+            {isModelDropdownOpen && (
+              <div className="absolute right-0 top-full mt-2 z-50 w-72 sm:w-80 p-3 rounded-2xl bg-panel/95 border border-edge shadow-2xl backdrop-blur-xl animate-fadeIn space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-edge/60">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+                    <Sparkles className="w-3.5 h-3.5 text-accent" />
+                    <span>{ct.modelSelectorLabel || 'Modelo y Razonamiento'}</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold">
+                    ⏱️ 2h Timeout
+                  </span>
+                </div>
+
+                {/* Model Selection */}
+                <div className="space-y-1.5">
+                  <span className="text-[10.5px] font-mono text-muted uppercase tracking-wider block">
+                    {ct.modelLabel || 'Modelo de IA'}
+                  </span>
+                  <div className="space-y-1">
+                    {MODEL_OPTIONS.map((m) => {
+                      const isSelected = selectedModel === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            onChangeModel && onChangeModel(m.id);
+                          }}
+                          className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all border cursor-pointer ${
+                            isSelected
+                              ? 'bg-accent/15 border-accent text-ink shadow-xs'
+                              : 'bg-paper/60 border-edge/50 hover:bg-sunken text-muted hover:text-ink'
+                          }`}
+                        >
+                          <div className="min-w-0 pr-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-semibold text-ink truncate">{m.name}</span>
+                              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-sunken text-muted border border-edge/60">
+                                {m.badge}
+                              </span>
+                            </div>
+                            <div className="text-[10.5px] text-muted truncate">{m.provider}</div>
+                          </div>
+                          {isSelected && (
+                            <Check className="w-4 h-4 text-accent shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Thinking Effort Quality: Low, Medium, High */}
+                <div className="pt-2 border-t border-edge/60 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] font-mono text-muted uppercase tracking-wider">
+                      {ct.thinkingEffort || 'Calidad de Pensamiento'}
+                    </span>
+                    <span className="text-[10px] font-mono text-accent uppercase font-bold">
+                      {thinkingEffort}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-sunken border border-edge">
+                    <button
+                      type="button"
+                      onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('low')}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        thinkingEffort === 'low'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs'
+                          : 'text-muted hover:text-ink'
+                      }`}
+                    >
+                      <span>🟢 Low</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('medium')}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        thinkingEffort === 'medium'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-xs'
+                          : 'text-muted hover:text-ink'
+                      }`}
+                    >
+                      <span>🟡 Med</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onChangeThinkingEffort && onChangeThinkingEffort('high')}
+                      className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        thinkingEffort === 'high'
+                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-xs'
+                          : 'text-muted hover:text-ink'
+                      }`}
+                    >
+                      <span>🟣 High</span>
+                    </button>
+                  </div>
+
+                  <p className="text-[10.5px] text-muted leading-tight">
+                    {thinkingEffort === 'high'
+                      ? 'Pensamiento profundo paso a paso para análisis exhaustivo y arquitectura.'
+                      : thinkingEffort === 'medium'
+                        ? 'Pensamiento equilibrado con buena velocidad y análisis técnico.'
+                        : 'Mínima latencia con respuestas ágiles y directas.'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Circular 5-hour quota counter & popover */}
           <UsageCounter currentUser={currentUser} t={t} />
 
@@ -492,6 +668,120 @@ export function ChatView({
                 {isAdmin ? ct.welcomeAdminDesc : ct.welcomeGuestDesc}
               </p>
             </div>
+
+            {/* Platform Capabilities Showcase Card for Guests */}
+            {!isAdmin && (
+              <div className="mt-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-panel/95 to-sunken/90 border border-edge/80 shadow-v2-md text-left space-y-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-accent/15 flex items-center justify-center text-accent ring-1 ring-accent/30 shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs sm:text-sm font-semibold text-ink">
+                        {ct.showcaseTitle}
+                      </h3>
+                      <p className="text-[11px] text-muted">
+                        {ct.showcaseDesc}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="p-2.5 rounded-xl bg-paper/60 border border-edge/60 flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-md bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-ink flex items-center gap-1.5">
+                        {ct.featChatTitle}
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-teal-500/15 text-teal-300">IA</span>
+                      </div>
+                      <div className="text-[11px] text-muted leading-tight mt-0.5">
+                        {ct.featChatDesc}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-paper/60 border border-edge/60 flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-md bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <Clock className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-ink flex items-center gap-1.5">
+                        {ct.featClockTitle}
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-300">Live</span>
+                      </div>
+                      <div className="text-[11px] text-muted leading-tight mt-0.5">
+                        {ct.featClockDesc}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-paper/60 border border-edge/60 flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-md bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <FolderCode className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-ink flex items-center gap-1.5">
+                        {ct.featDevTitle}
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-300">IDE</span>
+                      </div>
+                      <div className="text-[11px] text-muted leading-tight mt-0.5">
+                        {ct.featDevDesc}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-paper/60 border border-edge/60 flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-md bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <Calendar className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-ink flex items-center gap-1.5">
+                        {ct.featCalTitle}
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300">Sync</span>
+                      </div>
+                      <div className="text-[11px] text-muted leading-tight mt-0.5">
+                        {ct.featCalDesc}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-paper/60 border border-edge/60 flex items-start gap-2.5 sm:col-span-2">
+                    <div className="w-6 h-6 rounded-md bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <Activity className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-ink flex items-center gap-1.5">
+                        {ct.featMetricsTitle}
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-300">Debian 13</span>
+                      </div>
+                      <div className="text-[11px] text-muted leading-tight mt-0.5">
+                        {ct.featMetricsDesc}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    onClick={() => {
+                      if (onSelectSuggestion) {
+                        onSelectSuggestion(ct.showcasePrompt);
+                      } else {
+                        onSendMessage(ct.showcasePrompt, activeWorkspace);
+                      }
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-accent/15 hover:bg-accent/25 border border-accent/30 text-accent font-medium text-xs transition-colors cursor-pointer group shadow-v2-sm"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                    <span>{ct.showcaseAskBtn}</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Suggestions Grid */}
             <div className="pt-2">
@@ -650,8 +940,8 @@ export function ChatView({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Box Footer (Modern Card Style with dynamic auto-height & non-blocking writing) */}
-      <div className="p-2.5 sm:p-4 border-t border-edge bg-paper/90 backdrop-blur-md shrink-0">
+      {/* Input Box Footer (Modern Card Style with dynamic auto-height & iPhone safe-area padding) */}
+      <div className="p-2.5 sm:p-4 pb-[max(0.65rem,env(safe-area-inset-bottom,0px))] border-t border-edge bg-paper/95 backdrop-blur-md shrink-0">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative flex flex-col gap-2">
           {/* Attached Files & Upload Status Badges */}
           {(attachedFiles.length > 0 || isUploading || uploadError) && (
@@ -724,7 +1014,7 @@ export function ChatView({
               </div>
             )}
 
-            {/* Input Textarea (Auto-resizing, user can type anytime) */}
+            {/* Input Textarea (Auto-resizing, 16px minimum font size on mobile to stop iOS auto-zoom) */}
             <textarea
               ref={inputRef}
               value={inputText}
@@ -739,12 +1029,12 @@ export function ChatView({
                     : ct.placeholderGuest
               }
               rows="1"
-              className="w-full bg-transparent border-none text-xs sm:text-sm text-ink placeholder-muted/60 focus:outline-none focus:ring-0 resize-none px-2 sm:px-3 pt-1.5 pb-2 min-h-[46px] max-h-[220px] [scrollbar-width:thin] leading-relaxed"
+              className="w-full bg-transparent border-none text-[16px] sm:text-sm text-ink placeholder-muted/60 focus:outline-none focus:ring-0 resize-none px-2 sm:px-3 pt-1.5 pb-2 min-h-[46px] max-h-[220px] [scrollbar-width:thin] leading-relaxed"
             />
 
             {/* Box Action Toolbar (bottom row) */}
             <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-edge/40 px-1">
-              {/* Left Actions: File attachment & Workspace pill & Clear button */}
+              {/* Left Actions: File attachment & Workspace pill & Clear button & Quick Thinking Toggle */}
               <div className="flex items-center gap-1.5 min-w-0">
                 {isAdmin && (
                   <>
@@ -767,6 +1057,28 @@ export function ChatView({
                     </button>
                   </>
                 )}
+
+                {/* Quick Thinking Quality Toggle Chip */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!onChangeThinkingEffort) return;
+                    const nextEffort = thinkingEffort === 'low' ? 'medium' : thinkingEffort === 'medium' ? 'high' : 'low';
+                    onChangeThinkingEffort(nextEffort);
+                  }}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-[8px] text-[11px] font-mono font-medium transition-all cursor-pointer border ${
+                    thinkingEffort === 'high'
+                      ? 'bg-purple-500/15 border-purple-500/40 text-purple-300 hover:bg-purple-500/25 shadow-xs'
+                      : thinkingEffort === 'medium'
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25 shadow-xs'
+                      : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 shadow-xs'
+                  }`}
+                  title={`Calidad de pensamiento: ${thinkingEffort.toUpperCase()} (Clic para alternar Low / Medium / High)`}
+                >
+                  <span>
+                    {thinkingEffort === 'high' ? '🧠 High' : thinkingEffort === 'medium' ? '⚡ Med' : '🟢 Low'}
+                  </span>
+                </button>
 
                 {isAdmin && activeWorkspace && (
                   <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-[8px] bg-sunken border border-edge/60 text-[10.5px] font-mono text-muted truncate max-w-[150px]">

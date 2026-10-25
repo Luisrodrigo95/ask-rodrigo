@@ -232,7 +232,7 @@ export const SessionDrawer = React.memo(function SessionDrawer({
 
       <aside
         aria-label="Session Drawer"
-        className={`fixed inset-y-0 left-0 z-50 md:relative md:inset-auto md:z-10 shrink-0 flex flex-col border-r border-edge bg-paper transition-all duration-200 select-none shadow-2xl md:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 md:relative md:inset-auto md:z-10 shrink-0 flex flex-col border-r border-edge bg-paper transition-all duration-200 select-none shadow-2xl md:shadow-none safe-top safe-bottom ${
           isDrawerOpen
             ? 'w-[85vw] max-w-[320px] md:w-[300px] lg:w-[340px]'
             : 'w-0 overflow-hidden border-none pointer-events-none md:pointer-events-auto'

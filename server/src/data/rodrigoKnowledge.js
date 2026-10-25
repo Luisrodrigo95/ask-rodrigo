@@ -131,6 +131,38 @@ export const rodrigoKnowledge = {
     }
   ],
 
+  askRodrigoPlatform: {
+    name: "Ask-Rodrigo Engineering & AI Management Suite",
+    description: "Plataforma integral de gestión de desarrollo, asistencia con IA y control de infraestructura creada por Luis Rodrigo García.",
+    features: [
+      {
+        id: "chat",
+        title: "Chat con IA & Asistente Personal (Antigravity Bridge)",
+        description: "Asistente inteligente multimodal en tiempo real con streaming token por token, modo verboso para inspeccionar comandos ejecutados y resultados de consola, y soporte para análisis de archivos e imágenes binarias."
+      },
+      {
+        id: "clock",
+        title: "Clock — Control Horario & Fichaje de Trabajo",
+        description: "Módulo en tiempo real para registrar, iniciar, detener, pausar y editar el tiempo transcurrido de desarrollo y sesiones de trabajo, sincronizado en vivo con la barra de navegación lateral y con bitácora de notas."
+      },
+      {
+        id: "development",
+        title: "Development — Estudio de Desarrollo Web Integrado",
+        description: "Entorno de desarrollo completo dentro del navegador potenciado por Monaco Editor con resaltado de sintaxis, explorador de proyectos en producción (Ask-Rodrigo, PresWin, TotiMigraciones, Portfolio, WiwiShop), terminal interactiva y gestión de revisiones de código (PR reviews)."
+      },
+      {
+        id: "calendar",
+        title: "Calendario — Agenda Operativa de Rodrigo",
+        description: "Gestión de citas y eventos con vistas mensual, semanal (cuadriculado dinámico de días vs horas) y diaria, categorización de eventos (citas consulares, mantenimientos del VPS, proyectos) y creación de recordatorios."
+      },
+      {
+        id: "metrics",
+        title: "Métricas & Servidor — Telemetría del VPS en Tiempo Real",
+        description: "Monitoreo en vivo del nodo de producción white-stingray-87538 (Debian 13 Trixie x86_64): utilización de CPU, memoria RAM, almacenamiento en disco SSD, tiempo de actividad (uptime), y estado de procesos PM2 y demonios críticos de systemd."
+      }
+    ]
+  },
+
   infrastructure: {
     vps: {
       provider: "ZAP-Hosting",
@@ -218,6 +250,7 @@ export function getSanitizedPublicKnowledge() {
   return {
     profile: rodrigoKnowledge.profile,
     skills: rodrigoKnowledge.skills,
+    askRodrigoPlatform: rodrigoKnowledge.askRodrigoPlatform,
     experience: rodrigoKnowledge.experience,
     projects: rodrigoKnowledge.projects.map(p => ({
       name: p.name,

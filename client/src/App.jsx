@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, LogOut, MessageSquare, Settings } from 'lucide-react';
+import {
+  User,
+  LogOut,
+  MessageSquare,
+  Settings,
+  Plus,
+  CalendarDays,
+  Clock,
+  CodeXml,
+  Cpu
+} from 'lucide-react';
 import { PrimaryRail } from './components/PrimaryRail';
 import { SessionDrawer } from './components/SessionDrawer';
 import { SubagentPanel } from './components/SubagentPanel';
@@ -8,6 +18,7 @@ import { ChatView } from './components/ChatView';
 import { MetricsView } from './components/MetricsView';
 import { CalendarView } from './components/CalendarView';
 import { DeveloperView } from './components/DeveloperView';
+import { ClockView } from './components/ClockView';
 import { ProfileModal } from './components/ProfileModal';
 import rodrigoIcon from './assets/rodrigo-icon.png';
 
@@ -55,6 +66,20 @@ export function App() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : false));
   const [isSubagentsOpen, setIsSubagentsOpen] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState(() => localStorage.getItem('ask_rodrigo_workspace') || 'normal');
+
+  // AI Model & Thinking Effort (low, medium, high) states
+  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('ask_rodrigo_model') || 'gemini-3.8-flash');
+  const [thinkingEffort, setThinkingEffort] = useState(() => localStorage.getItem('ask_rodrigo_effort') || 'high');
+
+  const handleChangeModel = (model) => {
+    setSelectedModel(model);
+    localStorage.setItem('ask_rodrigo_model', model);
+  };
+
+  const handleChangeEffort = (effort) => {
+    setThinkingEffort(effort);
+    localStorage.setItem('ask_rodrigo_effort', effort);
+  };
 
   // Quick Access / Floating Dock visibility (persisted)
   const [isDockVisible, setIsDockVisible] = useState(() => {
@@ -112,6 +137,49 @@ export function App() {
       localStorage.setItem('ask_rodrigo_verbose_mode', String(next));
       return next;
     });
+  };
+
+  // Clock & Work Session Timer State (Persisted)
+  const [clockSeconds, setClockSeconds] = useState(() => {
+    const saved = localStorage.getItem('ask_rodrigo_clock_seconds');
+    return saved !== null ? parseInt(saved, 10) || 0 : 7544;
+  });
+  const [isClockRunning, setIsClockRunning] = useState(() => {
+    const saved = localStorage.getItem('ask_rodrigo_clock_running');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  useEffect(() => {
+    if (!isClockRunning) return;
+    const interval = setInterval(() => {
+      setClockSeconds((prev) => {
+        const next = prev + 1;
+        localStorage.setItem('ask_rodrigo_clock_seconds', String(next));
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isClockRunning]);
+
+  const handleStartClock = () => {
+    setIsClockRunning(true);
+    localStorage.setItem('ask_rodrigo_clock_running', 'true');
+  };
+
+  const handleStopClock = () => {
+    setIsClockRunning(false);
+    localStorage.setItem('ask_rodrigo_clock_running', 'false');
+  };
+
+  const handleEditClock = (newSeconds) => {
+    const safe = Math.max(0, Math.floor(newSeconds || 0));
+    setClockSeconds(safe);
+    localStorage.setItem('ask_rodrigo_clock_seconds', String(safe));
+  };
+
+  const handleResetClock = () => {
+    setClockSeconds(0);
+    localStorage.setItem('ask_rodrigo_clock_seconds', '0');
   };
 
   // 1. Initial Session Validation & Data Load
@@ -661,7 +729,11 @@ export function App() {
           }));
         }
       },
-      targetWorkspace
+      {
+        workspace: targetWorkspace,
+        model: selectedModel,
+        effort: thinkingEffort
+      }
     );
   };
 
@@ -717,79 +789,75 @@ export function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={handleLogout}
+        clockSeconds={clockSeconds}
+        isClockRunning={isClockRunning}
         t={t}
       />
 
       {/* 2. Main Workstation Container */}
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {/* Mobile Header (Visible only on screens below md) */}
-        <div className="md:hidden flex items-center justify-between px-3 py-2 border-b border-edge bg-panel">
-          <div className="flex items-center gap-2">
+        <div className="md:hidden flex items-center justify-between px-3.5 py-2.5 border-b border-edge bg-panel/95 backdrop-blur-md select-none shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setActiveTab('chat')}
-              className="relative h-7 w-7 overflow-hidden rounded-[8px] ring-1 ring-white/10 shadow-sm shrink-0 cursor-pointer hover:opacity-90"
+              className="relative h-8 w-8 overflow-hidden rounded-xl ring-1 ring-white/10 shadow-sm shrink-0 cursor-pointer hover:opacity-90 transition-all active:scale-95"
               title="Ask Rodrigo"
             >
               <img src={rodrigoIcon} alt="Ask Rodrigo" className="w-full h-full object-cover" />
             </button>
-            <span className="text-sm font-semibold text-ink truncate">Ask Rodrigo</span>
-            {activeTab === 'chat' && (
-              <button
-                onClick={() => setIsDrawerOpen((prev) => !prev)}
-                className="p-1 rounded-[6px] text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
-                title={t.rail?.chat || 'Historial de chats'}
-              >
-                <MessageSquare className="w-4 h-4 text-accent" />
-              </button>
-            )}
+            <div className="flex flex-col min-w-0">
+              <span className="text-[14px] font-semibold text-ink leading-tight truncate">Ask Rodrigo</span>
+              <span className="text-[10px] font-mono text-muted flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                {currentUser?.role === 'admin' ? 'Admin' : 'Guest'}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`px-2 py-1 rounded-[6px] text-xs font-medium transition-colors ${activeTab === 'chat' ? 'bg-accent text-white font-semibold' : 'text-muted'}`}
-            >
-              Chat
-            </button>
-            <button
-              onClick={() => setActiveTab('calendar')}
-              className={`px-2 py-1 rounded-[6px] text-xs font-medium transition-colors ${activeTab === 'calendar' ? 'bg-accent text-white font-semibold' : 'text-muted'}`}
-            >
-              Cal
-            </button>
-            {currentUser?.role === 'admin' && (
-              <button
-                onClick={() => setActiveTab('development')}
-                className={`px-2 py-1 rounded-[6px] text-xs font-medium transition-colors ${activeTab === 'development' ? 'bg-accent text-white font-semibold' : 'text-muted'}`}
-              >
-                Dev
-              </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {activeTab === 'chat' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsDrawerOpen((prev) => !prev)}
+                  className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                    isDrawerOpen
+                      ? 'bg-accent/15 border-accent text-accent'
+                      : 'bg-sunken border-edge text-muted hover:text-ink'
+                  }`}
+                  title={t.rail?.chats || 'Historial de chats'}
+                  aria-label="Historial de chats"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleNewChat}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-accent text-white font-medium text-xs shadow-sm hover:bg-accent/90 transition-all active:scale-95 cursor-pointer"
+                  title={t.sidebar?.newChat || 'Nuevo chat'}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="text-[11px] font-semibold">{t.sidebar?.newChatShort || 'Nuevo'}</span>
+                </button>
+              </>
             )}
-            {currentUser?.role === 'admin' && (
-              <button
-                onClick={() => setActiveTab('metrics')}
-                className={`px-2 py-1 rounded-[6px] text-xs font-medium transition-colors ${activeTab === 'metrics' ? 'bg-accent text-white font-semibold' : 'text-muted'}`}
-              >
-                Ops
-              </button>
-            )}
+
             <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-1 rounded-[6px] text-muted hover:text-ink transition-colors"
-              title={t.rail?.settings || 'Configuración'}
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            <button
+              type="button"
               onClick={() => (currentUser?.role === 'admin' ? setIsProfileOpen(true) : setIsLoginOpen(true))}
-              className="p-1 rounded-[6px] text-muted hover:text-ink transition-colors"
+              className="p-2 rounded-xl bg-sunken border border-edge text-muted hover:text-ink transition-all active:scale-95 cursor-pointer"
+              title={currentUser?.role === 'admin' ? 'Perfil' : 'Iniciar Sesión'}
             >
               <User className="w-4 h-4" />
             </button>
+
             {currentUser?.role === 'admin' && (
               <button
+                type="button"
                 onClick={handleLogout}
-                className="p-1 rounded-[6px] text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                className="p-2 rounded-xl bg-sunken border border-edge text-muted hover:text-rose-400 hover:border-rose-500/40 transition-all active:scale-95 cursor-pointer"
                 title={t.rail?.logout || 'Cerrar sesión'}
               >
                 <LogOut className="w-4 h-4" />
@@ -830,6 +898,10 @@ export function App() {
                 verboseMode={verboseMode}
                 onToggleVerboseMode={handleToggleVerboseMode}
                 streamingTools={streamingTools[activeConversationId || 'new'] || []}
+                selectedModel={selectedModel}
+                onChangeModel={handleChangeModel}
+                thinkingEffort={thinkingEffort}
+                onChangeThinkingEffort={handleChangeEffort}
                 onSendMessage={handleSendMessage}
                 suggestions={suggestions}
                 onSelectSuggestion={(sug) => handleSendMessage(sug, activeWorkspace)}
@@ -855,6 +927,17 @@ export function App() {
                 t={t}
               />
             </>
+          ) : activeTab === 'clock' ? (
+            <ClockView
+              secondsElapsed={clockSeconds}
+              isRunning={isClockRunning}
+              onStart={handleStartClock}
+              onStop={handleStopClock}
+              onEdit={handleEditClock}
+              onReset={handleResetClock}
+              currentUser={currentUser}
+              t={t}
+            />
           ) : activeTab === 'metrics' ? (
             <div className="flex-1 overflow-y-auto bg-paper p-4">
               <MetricsView
@@ -883,6 +966,101 @@ export function App() {
           )}
         </div>
 
+        {/* iOS Mobile Bottom Navigation Bar (Visible only on screens below md) */}
+        <nav
+          aria-label="Mobile Navigation"
+          className="md:hidden shrink-0 flex items-center justify-around px-2 pt-2 pb-[max(env(safe-area-inset-bottom),10px)] bg-panel/95 backdrop-blur-xl border-t border-edge z-30 select-none shadow-lg"
+        >
+          <button
+            type="button"
+            onClick={() => setActiveTab('chat')}
+            className={`flex flex-col items-center justify-center min-w-[54px] py-1 px-1.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'chat'
+                ? 'text-accent font-semibold scale-105'
+                : 'text-muted hover:text-ink'
+            }`}
+          >
+            <div className={`p-1 rounded-lg ${activeTab === 'chat' ? 'bg-accent/15' : ''}`}>
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] tracking-tight mt-0.5">{t.rail?.chats || 'Chat'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('calendar')}
+            className={`flex flex-col items-center justify-center min-w-[54px] py-1 px-1.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'calendar'
+                ? 'text-accent font-semibold scale-105'
+                : 'text-muted hover:text-ink'
+            }`}
+          >
+            <div className={`p-1 rounded-lg ${activeTab === 'calendar' ? 'bg-accent/15' : ''}`}>
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] tracking-tight mt-0.5">{t.rail?.calendar || 'Cal'}</span>
+          </button>
+
+          {currentUser?.role === 'admin' && (
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab('clock')}
+                className={`flex flex-col items-center justify-center min-w-[54px] py-1 px-1.5 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'clock'
+                    ? 'text-accent font-semibold scale-105'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                <div className={`p-1 rounded-lg ${activeTab === 'clock' ? 'bg-accent/15' : ''}`}>
+                  <Clock className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] tracking-tight mt-0.5">{t.rail?.clock || 'Clock'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('development')}
+                className={`flex flex-col items-center justify-center min-w-[54px] py-1 px-1.5 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'development'
+                    ? 'text-accent font-semibold scale-105'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                <div className={`p-1 rounded-lg ${activeTab === 'development' ? 'bg-accent/15' : ''}`}>
+                  <CodeXml className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] tracking-tight mt-0.5">{t.rail?.development || 'Dev'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('metrics')}
+                className={`flex flex-col items-center justify-center min-w-[54px] py-1 px-1.5 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'metrics'
+                    ? 'text-accent font-semibold scale-105'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                <div className={`p-1 rounded-lg ${activeTab === 'metrics' ? 'bg-accent/15' : ''}`}>
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] tracking-tight mt-0.5">{t.rail?.metrics || 'Ops'}</span>
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex flex-col items-center justify-center min-w-[54px] py-1 px-1.5 rounded-xl text-muted hover:text-ink transition-all cursor-pointer"
+          >
+            <div className="p-1 rounded-lg">
+              <Settings className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] tracking-tight mt-0.5">{t.rail?.settings || 'Ajustes'}</span>
+          </button>
+        </nav>
       </div>
 
       {/* Floating Quick Dock (Bottom-Right - Quick Access) */}

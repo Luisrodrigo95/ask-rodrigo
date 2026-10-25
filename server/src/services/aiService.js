@@ -16,6 +16,59 @@ function localKnowledgeResponder(userMessage, isGuest = false) {
     return securityCheck.deflection;
   }
 
+  // 0. Ask-Rodrigo Platform Features & Capabilities
+  if (
+    q.includes('que hace ask rodrigo') || q.includes('qué hace ask rodrigo') ||
+    q.includes('que puede hacer ask rodrigo') || q.includes('qué puede hacer ask rodrigo') ||
+    q.includes('caracteristicas') || q.includes('características') ||
+    q.includes('funciones de la plataforma') || q.includes('features') ||
+    q.includes('enlista todo lo que hace ask rodrigo') ||
+    (q.includes('ask rodrigo') && (q.includes('clock') || q.includes('development') || q.includes('calendario') || q.includes('metricas') || q.includes('funciones')))
+  ) {
+    if (isEn) {
+      return `### ⚡ What Can Ask Rodrigo Do? — Platform Features & Architecture\n\n` +
+        `**Ask Rodrigo** is a high-performance engineering workstation, autonomous AI bridge, and infrastructure management portal created by **Luis Rodrigo García**. Here is an exhaustive overview of everything the platform offers:\n\n` +
+        `1. 🤖 **Real-Time AI Assistant (Antigravity Bridge):**\n` +
+        `   * Connected to deep LLM reasoning engines with instant token-by-token streaming.\n` +
+        `   * **Verbose Mode:** Allows inspecting live system tools, bash commands executed, and raw outputs in collapsible single-line items.\n` +
+        `   * **Multimodal Attachments:** Seamlessly upload and analyze binary images (PNG, JPG) and code files directly on the server.\n\n` +
+        `2. ⏱️ **Clock (Work Session & Time Clock):**\n` +
+        `   * Real-time work session tracking with continuous live stopwatch synchronized with the left navigation rail.\n` +
+        `   * Features: **Clock In (Start)**, **Clock Out (Pause)**, **Manual Time Editing (Hours/Minutes/Seconds)**, Quick presets (+15m, +30m, +1h), and session log history with custom notes.\n\n` +
+        `3. 💻 **Development Studio (Integrated Monaco IDE):**\n` +
+        `   * Full-fledged browser IDE powered by Microsoft Monaco Editor with complete syntax highlighting.\n` +
+        `   * Instant project switching across live production directories: *Ask-Rodrigo*, *PresWin*, *TotiMigraciones*, *Portfolio*, and *WiwiShop*.\n` +
+        `   * Embedded terminal, file explorer, and dedicated **PR Code Reviews** panel.\n\n` +
+        `4. 📅 **Operations Calendar (Rodrigo's Schedule):**\n` +
+        `   * Operational agenda with **Month**, **Grid Week (Days vs Hours matrix)**, and **Day** views.\n` +
+        `   * Categorization for consular appointments, VPS server maintenance windows, and project deadlines.\n\n` +
+        `5. 📊 **Server Telemetry & Infrastructure (Ops):**\n` +
+        `   * Live telemetry from production node **white-stingray-87538** (*Debian 13 Trixie x86_64*).\n` +
+        `   * Real-time tracking of CPU utilization, RAM memory, SSD disk consumption, system uptime, and active PM2 services.\n\n` +
+        `> **Architecture:** Runs under Nginx reverse proxy with TLS 1.3, HTTP/2, Let's Encrypt SSL, and strict zero-trust boundary controls.`;
+    }
+    return `### ⚡ ¿Qué puede hacer Ask Rodrigo? — Funcionalidades y Arquitectura de la Plataforma\n\n` +
+      `**Ask Rodrigo** es una suite integral de ingeniería, puente de agentes de IA y centro de control de infraestructura desarrollada por **Luis Rodrigo García**. Aquí tienes el desglose de todas sus características principales:\n\n` +
+      `1. 🤖 **Chat con IA & Asistente Inteligente (Antigravity Bridge):**\n` +
+      `   * Asistencia técnica en tiempo real con streaming token por token de alto rendimiento.\n` +
+      `   * **Modo Verboso:** Permite inspeccionar en vivo los comandos de consola ejecutados, herramientas del sistema y sus resultados en líneas colapsables interactivas.\n` +
+      `   * **Soporte Multimodal:** Carga y análisis directo de imágenes (JPG, PNG) y archivos de código en el servidor.\n\n` +
+      `2. ⏱️ **Clock — Control Horario & Fichaje de Trabajo:**\n` +
+      `   * Módulo de seguimiento en tiempo real de sesiones de desarrollo y horas de trabajo activas.\n` +
+      `   * Funciones: **Iniciar Fichaje (Clock In)**, **Detener Fichaje (Pause)**, **Editar Tiempo Manualmente (Horas, Minutos, Segundos)**, ajustes rápidos (+15m, +30m, +1h), y bitácora de sesiones con notas personalizadas, todo sincronizado en vivo con la barra lateral.\n\n` +
+      `3. 💻 **Development — Estudio de Desarrollo Web Integrado (Monaco IDE):**\n` +
+      `   * Entorno de desarrollo completo en el navegador con Monaco Editor y resaltado de sintaxis profesional.\n` +
+      `   * Selector de proyectos en producción en el VPS: *Ask-Rodrigo*, *PresWin*, *TotiMigraciones*, *Portfolio* y *WiwiShop*.\n` +
+      `   * Terminal interactiva, visor de archivos y panel de revisiones de código (PR reviews).\n\n` +
+      `4. 📅 **Calendario — Agenda Operativa de Rodrigo:**\n` +
+      `   * Agenda con vistas de **Mes**, **Semana Cuadriculada (días en filas vs horas en columnas)** y **Día**.\n` +
+      `   * Categorización para citas consulares, mantenimientos programados del VPS y entregas de proyectos.\n\n` +
+      `5. 📊 **Métricas del Servidor & Telemetría (Ops):**\n` +
+      `   * Telemetría en vivo del nodo de producción **white-stingray-87538** (*Debian 13 Trixie x86_64*).\n` +
+      `   * Monitoreo en tiempo real de uso de CPU, memoria RAM, almacenamiento SSD, tiempo de actividad (uptime) y estado de procesos en PM2 y demonios systemd.\n\n` +
+      `> **Seguridad y Despliegue:** Todo el sistema corre bajo Nginx con TLS 1.3, compresión HTTP/2, certificados Let's Encrypt y arquitectura de seguridad Zero-Trust.`;
+  }
+
   // 1. ZAP-Hosting Specific Experience
   if (q.includes('zap-hosting') || q.includes('zap hosting') || (q.includes('zap') && (q.includes('experiencia') || q.includes('experience')))) {
     const zap = rodrigoKnowledge.experience[0];
@@ -241,7 +294,7 @@ function localKnowledgeResponder(userMessage, isGuest = false) {
  */
 export async function generateChatResponse(message, history = [], options = {}) {
   const geminiApiKey = process.env.GEMINI_API_KEY;
-  const modelName = process.env.AI_MODEL || 'gemini-2.5-flash';
+  const modelName = options.model || process.env.AI_MODEL || 'gemini-2.5-flash';
   const isGuest = options.isGuest !== false;
 
   // Guard 1: Pre-Inference Perimeter
