@@ -76,10 +76,18 @@ export function SubagentPanel({
   if (!isOpen) return null;
 
   return (
-    <aside
-      aria-label="Subagents & Inspector Panel"
-      className="relative shrink-0 flex flex-col w-[320px] border-l border-edge bg-paper/95 transition-all duration-200 select-none overflow-hidden"
-    >
+    <>
+      {/* Mobile/Tablet Backdrop Overlay */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden animate-fadeIn"
+        aria-hidden="true"
+      />
+
+      <aside
+        aria-label="Subagents & Inspector Panel"
+        className="fixed inset-y-0 right-0 z-50 lg:relative lg:inset-auto lg:z-10 shrink-0 flex flex-col w-[85vw] max-w-[340px] lg:w-[320px] border-l border-edge bg-paper select-none overflow-hidden shadow-2xl lg:shadow-none transition-all duration-200"
+      >
       {/* Panel Header */}
       <div className="flex items-center justify-between px-3.5 py-3 border-b border-edge">
         <div className="flex items-center gap-2">
@@ -244,5 +252,6 @@ export function SubagentPanel({
         )}
       </div>
     </aside>
+    </>
   );
 }

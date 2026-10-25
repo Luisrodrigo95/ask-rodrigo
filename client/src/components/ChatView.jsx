@@ -21,7 +21,8 @@ import {
   Bot,
   PanelRight,
   PanelRightClose,
-  Image as ImageIcon
+  Image as ImageIcon,
+  MessageSquare
 } from 'lucide-react';
 import { marked } from 'marked';
 import { uploadAdminFile } from '../services/api.js';
@@ -114,6 +115,8 @@ export function ChatView({
   currentUser,
   activeWorkspace = 'normal',
   onSelectWorkspace,
+  isDrawerOpen,
+  onToggleDrawer,
   isSubagentsOpen,
   onToggleSubagents,
   t
@@ -306,29 +309,41 @@ export function ChatView({
     <div className="flex-1 flex flex-col h-full bg-paper relative overflow-hidden select-text">
       {/* Ask Marvin Top Bar: Greeting & Context Workspace Pills */}
       <div className="px-4 py-3 border-b border-edge bg-panel/60 backdrop-blur-md flex flex-wrap items-center justify-between gap-3">
-        {/* Left: Greeting & Status */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-[16px] font-semibold text-ink leading-none">
-              {isAdmin ? 'Hello Rodrigo.' : 'Hello Guest.'}
-            </h1>
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        {/* Left: Drawer Toggle Button (Mobile/Tablet) + Greeting & Status */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          {onToggleDrawer && (
+            <button
+              onClick={onToggleDrawer}
+              className="p-1.5 rounded-[8px] bg-sunken border border-edge text-muted hover:text-ink md:hidden cursor-pointer shrink-0 transition-colors shadow-v2-sm"
+              title="Historial de conversaciones"
+              aria-label="Abrir historial de conversaciones"
+            >
+              <MessageSquare className="w-4 h-4 text-accent" />
+            </button>
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-[15px] sm:text-[16px] font-semibold text-ink leading-none truncate">
+                {isAdmin ? 'Hello Rodrigo.' : 'Hello Guest.'}
+              </h1>
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            </div>
+            <p className="text-[11px] sm:text-[11.5px] text-muted mt-1 flex items-center gap-1.5 sm:gap-2 font-mono truncate">
+              <span>0 chats waiting</span>
+              <span>·</span>
+              <span className="text-accent font-medium">
+                {isAdmin ? ct.engineAdmin : ct.engineGuest}
+              </span>
+              {isAdmin && (
+                <>
+                  <span>·</span>
+                  <span className="text-slate-400 truncate max-w-[120px] sm:max-w-xs">
+                    {conversationId ? `Session: ${conversationId.slice(0, 8)}...` : 'New turn'}
+                  </span>
+                </>
+              )}
+            </p>
           </div>
-          <p className="text-[11.5px] text-muted mt-1 flex items-center gap-2 font-mono">
-            <span>0 chats waiting</span>
-            <span>·</span>
-            <span className="text-accent font-medium">
-              {isAdmin ? ct.engineAdmin : ct.engineGuest}
-            </span>
-            {isAdmin && (
-              <>
-                <span>·</span>
-                <span className="text-slate-400 truncate max-w-[150px] sm:max-w-xs">
-                  {conversationId ? `Session: ${conversationId.slice(0, 8)}...` : 'New turn'}
-                </span>
-              </>
-            )}
-          </p>
         </div>
 
         {/* Right: AI Usage Counter & Subagent Inspector Toggle */}
@@ -442,7 +457,7 @@ export function ChatView({
                 )}
 
                 <div
-                  className={`relative group rounded-[16px] px-4 py-3 max-w-[85%] text-sm leading-relaxed ${
+                  className={`relative group rounded-[16px] px-3.5 sm:px-4 py-2.5 sm:py-3 max-w-[92%] sm:max-w-[85%] text-xs sm:text-sm leading-relaxed ${
                     isUser
                       ? 'bg-accent text-white rounded-tr-none shadow-v2-sm'
                       : 'bg-panel border border-edge text-ink rounded-tl-none shadow-v2-sm'
@@ -519,7 +534,7 @@ export function ChatView({
             }`}>
               {isAdmin ? <Terminal className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
             </div>
-            <div className="rounded-[16px] px-4 py-3 max-w-[85%] text-sm bg-panel border border-accent/40 text-ink rounded-tl-none shadow-v2-md">
+            <div className="rounded-[16px] px-3.5 sm:px-4 py-2.5 sm:py-3 max-w-[92%] sm:max-w-[85%] text-xs sm:text-sm bg-panel border border-accent/40 text-ink rounded-tl-none shadow-v2-md">
               <div
                 className="prose prose-invert prose-sm max-w-none prose-pre:bg-sunken prose-pre:border prose-pre:border-edge prose-pre:rounded-[10px] prose-a:text-accent"
                 dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingReply) }}

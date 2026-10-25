@@ -117,32 +117,70 @@ export function SessionDrawer({
     }
   };
 
-  return (
-    <aside
-      aria-label="Session Drawer"
-      className={`relative shrink-0 flex flex-col border-r border-edge bg-paper/95 transition-all duration-200 select-none ${
-        isDrawerOpen ? 'w-[320px] lg:w-[360px]' : 'w-0 overflow-hidden border-none'
-      }`}
-    >
-      {/* Header with Title and + New Button */}
-      <div className="flex items-center justify-between px-3.5 pt-3 pb-2 border-b border-edge/60">
-        <div className="flex items-center gap-2">
-          <h2 className="text-[15px] font-semibold text-ink">{td.title}</h2>
-          {isAdmin && conversations.length > 0 && (
-            <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-sunken text-muted font-medium">
-              {filteredConversations.length}
-            </span>
-          )}
-        </div>
+  const handleSelectConv = (convId) => {
+    onSelectConversation(convId);
+    if (typeof window !== 'undefined' && window.innerWidth < 768 && onCloseDrawer) {
+      onCloseDrawer();
+    }
+  };
 
-        <button
-          onClick={onNewChat}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-accent text-white font-medium text-xs hover:bg-accent/90 transition-all shadow-v2-sm active:scale-95 cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>{td.newChat}</span>
-        </button>
-      </div>
+  const handleCreateNew = () => {
+    onNewChat();
+    if (typeof window !== 'undefined' && window.innerWidth < 768 && onCloseDrawer) {
+      onCloseDrawer();
+    }
+  };
+
+  return (
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isDrawerOpen && (
+        <div
+          onClick={onCloseDrawer}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden animate-fadeIn"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        aria-label="Session Drawer"
+        className={`fixed inset-y-0 left-0 z-50 md:relative md:inset-auto md:z-10 shrink-0 flex flex-col border-r border-edge bg-paper transition-all duration-200 select-none shadow-2xl md:shadow-none ${
+          isDrawerOpen
+            ? 'w-[85vw] max-w-[320px] md:w-[300px] lg:w-[340px]'
+            : 'w-0 overflow-hidden border-none pointer-events-none md:pointer-events-auto'
+        }`}
+      >
+        {/* Header with Title, + New Button and Mobile Close */}
+        <div className="flex items-center justify-between px-3.5 pt-3 pb-2 border-b border-edge/60">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[15px] font-semibold text-ink">{td.title}</h2>
+            {isAdmin && conversations.length > 0 && (
+              <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-sunken text-muted font-medium">
+                {filteredConversations.length}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleCreateNew}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-accent text-white font-medium text-xs hover:bg-accent/90 transition-all shadow-v2-sm active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{td.newChat}</span>
+            </button>
+            {onCloseDrawer && (
+              <button
+                onClick={onCloseDrawer}
+                className="p-1.5 rounded-[8px] text-muted hover:text-ink hover:bg-sunken md:hidden cursor-pointer transition-colors"
+                title="Cerrar"
+                aria-label="Cerrar historial"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
 
       {/* Search Input Box */}
       <div className="p-3 border-b border-edge/40">
@@ -248,7 +286,7 @@ export function SessionDrawer({
                   return (
                     <div
                       key={conv.id}
-                      onClick={() => onSelectConversation(conv.id)}
+                      onClick={() => handleSelectConv(conv.id)}
                       className={`group relative flex flex-col p-2.5 rounded-[10px] text-left transition-all cursor-pointer ${
                         isActive
                           ? 'bg-panel ring-1 ring-edge shadow-v2-sm text-ink'
@@ -296,5 +334,6 @@ export function SessionDrawer({
           ))}
       </div>
     </aside>
+    </>
   );
 }

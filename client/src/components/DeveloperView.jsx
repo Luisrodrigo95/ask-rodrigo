@@ -165,7 +165,11 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
   const [expandedFolders, setExpandedFolders] = useState({});
 
   // Developer Workspace Drawer (Projects & PR Reviews)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(() => localStorage.getItem('ask_rodrigo_dev_drawer') !== 'false');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) return false;
+    return localStorage.getItem('ask_rodrigo_dev_drawer') !== 'false';
+  });
+  const [isFileTreeOpen, setIsFileTreeOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : false));
   const [prs, setPrs] = useState([]);
   const [prsLoading, setPrsLoading] = useState(false);
 
@@ -317,6 +321,9 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
     const existing = openTabs.find((t) => t.path === fileItem.relativePath);
     if (existing) {
       setActiveTabPath(fileItem.relativePath);
+      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        setIsFileTreeOpen(false);
+      }
       return;
     }
 
@@ -336,6 +343,9 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
 
       setOpenTabs((prev) => [...prev, newTab]);
       setActiveTabPath(res.relativePath);
+      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        setIsFileTreeOpen(false);
+      }
     } catch (err) {
       showToast('Error al abrir archivo: ' + err.message, 'error');
     } finally {
@@ -648,7 +658,7 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
           <div className="flex items-center bg-sunken border border-edge/80 p-0.5 rounded-[10px] shadow-v2-sm">
             <button
               onClick={() => setViewMode('vscode')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all cursor-pointer ${
                 viewMode === 'vscode'
                   ? 'bg-accent text-white font-semibold shadow-v2-sm'
                   : 'text-muted hover:text-ink'
@@ -656,11 +666,12 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
               title="Visual Studio Code oficial con Marketplace de Extensiones y Terminal"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>VS Code Completo (Extensiones)</span>
+              <span className="hidden sm:inline">VS Code Completo</span>
+              <span className="sm:hidden">VS Code</span>
             </button>
             <button
               onClick={() => setViewMode('monaco')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-[8px] text-xs font-medium transition-all cursor-pointer ${
                 viewMode === 'monaco'
                   ? 'bg-accent text-white font-semibold shadow-v2-sm'
                   : 'text-muted hover:text-ink'
@@ -668,7 +679,8 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
               title="Editor Rápido y Gestor de Archivos nativo de Ask-Rodrigo"
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Editor Rápido</span>
+              <span className="hidden sm:inline">Editor Rápido</span>
+              <span className="sm:hidden">Monaco</span>
             </button>
           </div>
         )}
@@ -680,7 +692,7 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
               {/* Copy VS Code Password */}
               <button
                 onClick={handleCopyPassword}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] text-xs font-mono bg-sunken border border-edge text-ink/90 hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+                className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-[8px] text-xs font-mono bg-sunken border border-edge text-ink/90 hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
                 title="Copiar contraseña de acceso de VS Code (RodrigoDev2026!)"
               >
                 {copiedKey ? (
@@ -688,7 +700,8 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
                 ) : (
                   <Key className="w-3.5 h-3.5 text-amber-400" />
                 )}
-                <span>{copiedKey ? '¡Copiada!' : 'Clave: RodrigoDev2026!'}</span>
+                <span className="hidden sm:inline">{copiedKey ? '¡Copiada!' : 'Clave: RodrigoDev2026!'}</span>
+                <span className="sm:hidden">{copiedKey ? '¡OK!' : 'Clave'}</span>
               </button>
 
               {/* Sincronizar Portapapeles */}
@@ -862,13 +875,37 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
         </div>
       ) : (
         /* 2. Quick Native Monaco Editor & File Tree Explorer */
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* Mobile Overlay Backdrop */}
+          {isFileTreeOpen && (
+            <div
+              onClick={() => setIsFileTreeOpen(false)}
+              className="fixed inset-0 z-30 bg-black/60 backdrop-blur-xs md:hidden animate-fadeIn"
+              aria-hidden="true"
+            />
+          )}
+
           {/* Left Sidebar: File Explorer */}
-          <aside className="w-64 md:w-72 border-r border-edge bg-panel flex flex-col shrink-0">
+          <aside
+            className={`${
+              isFileTreeOpen
+                ? 'fixed inset-y-0 left-0 z-40 w-72 md:relative md:inset-auto md:z-auto'
+                : 'hidden md:flex'
+            } md:w-64 lg:w-72 border-r border-edge bg-panel flex flex-col shrink-0 shadow-2xl md:shadow-none transition-all duration-200`}
+          >
             <div className="p-2.5 border-b border-edge/60 flex flex-col gap-2">
               <div className="flex items-center justify-between text-[11px] font-mono text-muted uppercase tracking-wider px-1">
                 <span>Explorador de Archivos</span>
-                <span className="text-[10px] text-muted/60">{tree.length} items</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted/60">{tree.length} items</span>
+                  <button
+                    onClick={() => setIsFileTreeOpen(false)}
+                    className="p-1 rounded text-muted hover:text-ink md:hidden cursor-pointer"
+                    title="Cerrar explorador"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               <div className="relative">
@@ -910,6 +947,14 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
           {/* Center Monaco Editor & Tabs */}
           <main className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e]">
             <div className="h-9 bg-[#252526] border-b border-[#333333] flex items-center overflow-x-auto [scrollbar-width:none] shrink-0 select-none">
+              <button
+                onClick={() => setIsFileTreeOpen((prev) => !prev)}
+                className="h-full px-2.5 flex items-center gap-1.5 border-r border-[#333333] text-zinc-300 hover:text-white md:hidden cursor-pointer bg-[#2d2d2d] shrink-0"
+                title="Abrir o cerrar explorador de archivos"
+              >
+                <Folder className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[11px] font-mono">Archivos</span>
+              </button>
               {openTabs.map((tab) => {
                 const isActive = tab.path === activeTabPath;
                 return (

@@ -7,8 +7,8 @@
     "canEditProjects": true,
     "picture": "https://lh3.googleusercontent.com/a/ACg8ocLzqG3MHJ92WVAxhIqZP-pkoCehnfy7HOzImAVZTDnZKxgBAAmY=s96-c",
     "addedAt": "2026-10-24T19:27:00.000Z",
-    "lastLogin": "2026-10-25T00:07:38.733Z",
-    "updatedAt": "2026-10-25T00:07:38.733Z"
+    "lastLogin": "2026-10-25T01:50:10.973Z",
+    "updatedAt": "2026-10-25T01:50:10.973Z"
   },
   {
     "email": "contacto@therodrigo.com",
@@ -33,12 +33,13 @@
   },
   {
     "email": "alexsiscg@gmail.com",
-    "name": "Alexsis CG",
+    "name": "Cristian Alexsis",
     "role": "admin",
     "isOwner": false,
     "canEditProjects": true,
-    "picture": null,
+    "picture": "https://lh3.googleusercontent.com/a/ACg8ocI5A9BpujEY-CW3R5cH8ZcqTa5vXAcWnMihgSbdlReZ_5xG8ek=s96-c",
     "addedAt": "2026-10-25T01:48:30.000Z",
-    "lastLogin": null
+    "lastLogin": "2026-10-25T01:51:17.997Z",
+    "updatedAt": "2026-10-25T01:51:17.998Z"
   }
 ]

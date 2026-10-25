@@ -114,13 +114,30 @@ export function DeveloperDrawer({
     }
   };
 
+  const handleSelectProject = (projId) => {
+    onSelectProject(projId);
+    if (typeof window !== 'undefined' && window.innerWidth < 768 && onClose) {
+      onClose();
+    }
+  };
+
   return (
-    <aside
-      aria-label="Developer Workspace Sidebar"
-      className={`relative shrink-0 flex flex-col border-r border-edge bg-paper/95 transition-all duration-200 select-none z-10 ${
-        isOpen ? 'w-[300px] lg:w-[330px]' : 'w-0 overflow-hidden border-none'
-      }`}
-    >
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-xs md:hidden animate-fadeIn"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        aria-label="Developer Workspace Sidebar"
+        className={`fixed inset-y-0 left-0 z-40 md:relative md:inset-auto md:z-10 shrink-0 flex flex-col border-r border-edge bg-paper transition-all duration-200 select-none shadow-2xl md:shadow-none ${
+          isOpen ? 'w-[85vw] max-w-[320px] md:w-[300px] lg:w-[330px]' : 'w-0 overflow-hidden border-none pointer-events-none md:pointer-events-auto'
+        }`}
+      >
       {/* Header with Title and Collapse Button */}
       <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-edge/60 bg-panel/40">
         <div className="flex items-center gap-2">
@@ -196,7 +213,7 @@ export function DeveloperDrawer({
               return (
                 <div
                   key={proj.id}
-                  onClick={() => onSelectProject(proj.id)}
+                  onClick={() => handleSelectProject(proj.id)}
                   className={`p-2.5 rounded-[12px] border transition-all cursor-pointer group select-none relative ${
                     isSelected
                       ? 'bg-panel border-accent/50 shadow-v2-sm ring-1 ring-accent/30'
@@ -463,5 +480,6 @@ export function DeveloperDrawer({
         </div>
       )}
     </aside>
+    </>
   );
 }

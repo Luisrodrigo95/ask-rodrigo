@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, LogOut } from 'lucide-react';
+import { User, LogOut, MessageSquare, Settings } from 'lucide-react';
 import { PrimaryRail } from './components/PrimaryRail';
 import { SessionDrawer } from './components/SessionDrawer';
 import { SubagentPanel } from './components/SubagentPanel';
@@ -49,7 +49,7 @@ export function App() {
 
   // Layout states for Dual-Sidebar & Subagents Inspector (Ask Marvin DNA)
   const [isRailCollapsed, setIsRailCollapsed] = useState(() => localStorage.getItem('ask_rodrigo_rail_collapsed') === 'true');
-  const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : false));
   const [isSubagentsOpen, setIsSubagentsOpen] = useState(false);
   const [activeWorkspace, setActiveWorkspace] = useState(() => localStorage.getItem('ask_rodrigo_workspace') || 'normal');
 
@@ -478,41 +478,65 @@ export function App() {
       {/* 2. Main Workstation Container */}
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         {/* Mobile Header (Visible only on screens below md) */}
-        <div className="md:hidden flex items-center justify-between px-3.5 py-2.5 border-b border-edge bg-panel">
+        <div className="md:hidden flex items-center justify-between px-3 py-2 border-b border-edge bg-panel">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('chat')}
-              className="grid h-7 w-7 place-items-center rounded-[8px] bg-gradient-to-br from-[#d9714d] to-[#b4532f] text-xs font-bold text-white shadow-sm"
+              className="grid h-7 w-7 place-items-center rounded-[8px] bg-gradient-to-br from-[#d9714d] to-[#b4532f] text-xs font-bold text-white shadow-sm shrink-0"
             >
               R
             </button>
-            <span className="text-sm font-semibold text-ink">Ask Rodrigo</span>
+            <span className="text-sm font-semibold text-ink truncate">Ask Rodrigo</span>
+            {activeTab === 'chat' && (
+              <button
+                onClick={() => setIsDrawerOpen((prev) => !prev)}
+                className="p-1 rounded-[6px] text-muted hover:text-ink hover:bg-sunken transition-colors cursor-pointer"
+                title={t.rail?.chat || 'Historial de chats'}
+              >
+                <MessageSquare className="w-4 h-4 text-accent" />
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setActiveTab('chat')}
-              className={`px-2 py-1 rounded-[6px] text-xs font-medium ${activeTab === 'chat' ? 'bg-accent text-white' : 'text-muted'}`}
+              className={`px-2 py-1 rounded-[6px] text-xs font-medium transition-colors ${activeTab === 'chat' ? 'bg-accent text-white font-semibold' : 'text-muted'}`}
             >
               Chat
             </button>
             <button
               onClick={() => setActiveTab('calendar')}
-              className={`px-2 py-1 rounded-[6px] text-xs font-medium ${activeTab === 'calendar' ? 'bg-accent text-white' : 'text-muted'}`}
+              className={`px-2 py-1 rounded-[6px] text-xs font-medium transition-colors ${activeTab === 'calendar' ? 'bg-accent text-white font-semibold' : 'text-muted'}`}
             >
               Cal
             </button>
             {currentUser?.role === 'admin' && (
               <button
+                onClick={() => setActiveTab('development')}
+                className={`px-2 py-1 rounded-[6px] text-xs font-medium transition-colors ${activeTab === 'development' ? 'bg-accent text-white font-semibold' : 'text-muted'}`}
+              >
+                Dev
+              </button>
+            )}
+            {currentUser?.role === 'admin' && (
+              <button
                 onClick={() => setActiveTab('metrics')}
-                className={`px-2 py-1 rounded-[6px] text-xs font-medium ${activeTab === 'metrics' ? 'bg-accent text-white' : 'text-muted'}`}
+                className={`px-2 py-1 rounded-[6px] text-xs font-medium transition-colors ${activeTab === 'metrics' ? 'bg-accent text-white font-semibold' : 'text-muted'}`}
               >
                 Ops
               </button>
             )}
             <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-1 rounded-[6px] text-muted hover:text-ink transition-colors"
+              title={t.rail?.settings || 'Configuración'}
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+            <button
               onClick={() => (currentUser?.role === 'admin' ? setIsProfileOpen(true) : setIsLoginOpen(true))}
-              className="p-1 rounded-[6px] text-muted hover:text-ink"
+              className="p-1 rounded-[6px] text-muted hover:text-ink transition-colors"
             >
               <User className="w-4 h-4" />
             </button>
@@ -562,6 +586,8 @@ export function App() {
                 currentUser={currentUser}
                 activeWorkspace={activeWorkspace}
                 onSelectWorkspace={handleSelectWorkspace}
+                isDrawerOpen={isDrawerOpen}
+                onToggleDrawer={() => setIsDrawerOpen((prev) => !prev)}
                 isSubagentsOpen={isSubagentsOpen}
                 onToggleSubagents={() => setIsSubagentsOpen((prev) => !prev)}
                 t={t}
