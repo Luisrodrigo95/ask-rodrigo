@@ -71,10 +71,10 @@ export function App() {
 
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [streamingReply, setStreamingReply] = useState('');
-  const [streamingStatus, setStreamingStatus] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [conversationsMessages, setConversationsMessages] = useState({}); // { [id | 'new']: Message[] }
+  const [generatingMap, setGeneratingMap] = useState({}); // { [id | 'new']: boolean }
+  const [streamingReplies, setStreamingReplies] = useState({}); // { [id | 'new']: string }
+  const [streamingStatuses, setStreamingStatuses] = useState({}); // { [id | 'new']: string }
   const [conversationsLoading, setConversationsLoading] = useState(false);
 
   // Metrics state
@@ -169,16 +169,21 @@ export function App() {
   };
 
   const handleSelectConversation = async (id) => {
-    if (isGenerating) return;
     setActiveConversationId(id);
     localStorage.setItem('ask_rodrigo_active_conv', id);
     setActiveTab('chat');
-    try {
-      const detail = await fetchConversationDetail(id);
-      setMessages(detail.messages || []);
-      setStreamingReply('');
-    } catch (err) {
-      console.error('Failed to load transcript:', err);
+
+    // Only fetch if not currently streaming to avoid overwriting live background generation
+    if (!generatingMap[id]) {
+      try {
+        const detail = await fetchConversationDetail(id);
+        setConversationsMessages((prev) => ({
+          ...prev,
+          [id]: detail.messages || []
+        }));
+      } catch (err) {
+        console.error('Failed to load transcript:', err);
+      }
     }
   };
 
@@ -205,18 +210,40 @@ export function App() {
   };
 
   const handleNewChat = () => {
-    if (isGenerating) return;
     setActiveConversationId(null);
     localStorage.removeItem('ask_rodrigo_active_conv');
-    setMessages([]);
-    setStreamingReply('');
     setActiveTab('chat');
+    if (!generatingMap['new']) {
+      setConversationsMessages((prev) => ({ ...prev, new: [] }));
+      setStreamingReplies((prev) => ({ ...prev, new: '' }));
+      setStreamingStatuses((prev) => ({ ...prev, new: '' }));
+    }
   };
 
   const handleDeleteConversation = async (id) => {
     try {
       await deleteConversation(id);
       setConversations((prev) => prev.filter((c) => c.id !== id));
+      setConversationsMessages((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      setGeneratingMap((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      setStreamingReplies((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      setStreamingStatuses((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
       if (activeConversationId === id) {
         handleNewChat();
       }
@@ -230,6 +257,26 @@ export function App() {
     try {
       await batchDeleteConversations(ids);
       setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
+      setConversationsMessages((prev) => {
+        const copy = { ...prev };
+        ids.forEach((id) => delete copy[id]);
+        return copy;
+      });
+      setGeneratingMap((prev) => {
+        const copy = { ...prev };
+        ids.forEach((id) => delete copy[id]);
+        return copy;
+      });
+      setStreamingReplies((prev) => {
+        const copy = { ...prev };
+        ids.forEach((id) => delete copy[id]);
+        return copy;
+      });
+      setStreamingStatuses((prev) => {
+        const copy = { ...prev };
+        ids.forEach((id) => delete copy[id]);
+        return copy;
+      });
       if (ids.includes(activeConversationId)) {
         handleNewChat();
       }
@@ -302,7 +349,10 @@ export function App() {
     await loginAsGuest();
     setCurrentUser({ role: 'guest', name: 'Guest', email: null });
     setActiveConversationId(null);
-    setMessages([]);
+    setConversationsMessages({});
+    setGeneratingMap({});
+    setStreamingReplies({});
+    setStreamingStatuses({});
     loadSuggestions();
   };
 
@@ -373,9 +423,14 @@ export function App() {
     localStorage.setItem('ask_rodrigo_workspace', ws);
   };
 
-  // 4. Send Message via Stream with Workspace (cwd) parameter
+  // 4. Send Message via Stream with Workspace (cwd) parameter (Independent Per-Chat Concurrency)
   const handleSendMessage = (text, targetWorkspace = activeWorkspace) => {
-    if (!text || isGenerating) return;
+    if (!text) return;
+    const startConvId = activeConversationId;
+    const startKey = startConvId || 'new';
+
+    // Only block if THIS specific chat is already executing
+    if (generatingMap[startKey]) return;
 
     const userMsg = {
       role: 'user',
@@ -383,68 +438,172 @@ export function App() {
       time: new Date().toISOString()
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setIsGenerating(true);
-    setStreamingReply('');
-    setStreamingStatus(
-      currentUser?.role === 'admin'
-        ? t.chat.processingAdmin
-        : t.chat.processingGuest
-    );
+    setConversationsMessages((prev) => ({
+      ...prev,
+      [startKey]: [...(prev[startKey] || []), userMsg]
+    }));
+
+    setGeneratingMap((prev) => ({ ...prev, [startKey]: true }));
+    setStreamingReplies((prev) => ({ ...prev, [startKey]: '' }));
+    setStreamingStatuses((prev) => ({
+      ...prev,
+      [startKey]:
+        currentUser?.role === 'admin'
+          ? t.chat.processingAdmin
+          : t.chat.processingGuest
+    }));
 
     let accumulatedText = '';
-    let currentConvId = activeConversationId;
+    let currentConvId = startConvId;
+    let trackedKey = startKey;
+    let pendingDeltaTimer = null;
+    let lastFlushTime = 0;
 
-    streamChatMessage(text, currentConvId, {
-      onInit: (data) => {
-        if (data.conversationId && currentUser?.role === 'admin') {
-          currentConvId = data.conversationId;
-          setActiveConversationId(data.conversationId);
-        }
-      },
-      onStatus: (data) => {
-        setStreamingStatus(data.message || 'Processing...');
-      },
-      onDelta: (chunk) => {
-        accumulatedText += chunk;
-        setStreamingReply(accumulatedText);
-      },
-      onDone: (meta) => {
-        setIsGenerating(false);
-        setStreamingStatus('');
-        const finalReply = accumulatedText || 'Completed.';
-        setMessages((prev) => [
+    const flushDelta = () => {
+      lastFlushTime = Date.now();
+      setStreamingReplies((prev) => {
+        if (prev[trackedKey] === accumulatedText) return prev;
+        return {
           ...prev,
-          {
+          [trackedKey]: accumulatedText
+        };
+      });
+      pendingDeltaTimer = null;
+    };
+
+    streamChatMessage(
+      text,
+      currentConvId,
+      {
+        onInit: (data) => {
+          if (data.conversationId && currentUser?.role === 'admin') {
+            const assignedId = data.conversationId;
+            currentConvId = assignedId;
+
+            // If trackedKey was a draft, migrate tracking to assignedId
+            if (trackedKey !== assignedId) {
+              const oldKey = trackedKey;
+              setGeneratingMap((prev) => {
+                const next = { ...prev, [assignedId]: true };
+                delete next[oldKey];
+                return next;
+              });
+              setStreamingReplies((prev) => {
+                const next = { ...prev, [assignedId]: accumulatedText };
+                delete next[oldKey];
+                return next;
+              });
+              setStreamingStatuses((prev) => {
+                const next = { ...prev, [assignedId]: prev[oldKey] || '' };
+                delete next[oldKey];
+                return next;
+              });
+              setConversationsMessages((prev) => {
+                const next = { ...prev, [assignedId]: prev[oldKey] || [] };
+                delete next[oldKey];
+                return next;
+              });
+              trackedKey = assignedId;
+
+              // Only bind activeConversationId to assignedId if user is still looking at this draft chat
+              setActiveConversationId((curActive) => {
+                if (curActive === null || curActive === oldKey) {
+                  localStorage.setItem('ask_rodrigo_active_conv', assignedId);
+                  return assignedId;
+                }
+                return curActive;
+              });
+
+              loadConversations(false);
+            }
+          }
+        },
+        onStatus: (data) => {
+          setStreamingStatuses((prev) => ({
+            ...prev,
+            [trackedKey]: data.message || 'Processing...'
+          }));
+        },
+        onDelta: (chunk) => {
+          accumulatedText += chunk;
+          const now = Date.now();
+          // Throttle UI re-renders to 50ms so browser main thread stays responsive for navigation
+          if (now - lastFlushTime > 50) {
+            flushDelta();
+          } else if (!pendingDeltaTimer) {
+            pendingDeltaTimer = setTimeout(flushDelta, 50);
+          }
+        },
+        onDone: (meta) => {
+          if (pendingDeltaTimer) clearTimeout(pendingDeltaTimer);
+          const finalReply = accumulatedText || 'Completed.';
+          setGeneratingMap((prev) => {
+            const next = { ...prev };
+            delete next[trackedKey];
+            return next;
+          });
+          setStreamingStatuses((prev) => {
+            const next = { ...prev };
+            delete next[trackedKey];
+            return next;
+          });
+          setStreamingReplies((prev) => {
+            const next = { ...prev };
+            delete next[trackedKey];
+            return next;
+          });
+
+          const assistantMsg = {
             role: 'assistant',
             content: finalReply,
             time: new Date().toISOString()
-          }
-        ]);
-        setStreamingReply('');
-        if (currentUser?.role === 'admin') {
-          loadConversations();
-        }
+          };
 
-        // Speech synthesis if enabled
-        if (speechEnabled) {
-          speakText(finalReply);
-        }
-      },
-      onError: (errMsg) => {
-        setIsGenerating(false);
-        setStreamingStatus('');
-        setMessages((prev) => [
-          ...prev,
-          {
+          setConversationsMessages((prev) => ({
+            ...prev,
+            [trackedKey]: [...(prev[trackedKey] || []), assistantMsg]
+          }));
+
+          if (currentUser?.role === 'admin') {
+            loadConversations(false);
+          }
+
+          if (speechEnabled) {
+            speakText(finalReply);
+          }
+        },
+        onError: (errMsg) => {
+          if (pendingDeltaTimer) clearTimeout(pendingDeltaTimer);
+          setGeneratingMap((prev) => {
+            const next = { ...prev };
+            delete next[trackedKey];
+            return next;
+          });
+          setStreamingStatuses((prev) => {
+            const next = { ...prev };
+            delete next[trackedKey];
+            return next;
+          });
+          setStreamingReplies((prev) => {
+            const next = { ...prev };
+            delete next[trackedKey];
+            return next;
+          });
+
+          const errorMsg = {
             role: 'assistant',
             content: `⚠️ **${t.chat.errorPrefix}**: ${errMsg}`,
             time: new Date().toISOString()
-          }
-        ]);
-        setStreamingReply('');
-      }
-    }, targetWorkspace);
+          };
+
+          setConversationsMessages((prev) => ({
+            ...prev,
+            [trackedKey]: [...(prev[trackedKey] || []), errorMsg]
+          }));
+        }
+      },
+      targetWorkspace
+    );
   };
 
   // 5. Speech Synthesis with language and rate support
@@ -587,6 +746,7 @@ export function App() {
               <SessionDrawer
                 conversations={conversations}
                 activeId={activeConversationId}
+                generatingMap={generatingMap}
                 onSelectConversation={handleSelectConversation}
                 onNewChat={handleNewChat}
                 onDeleteConversation={handleDeleteConversation}
@@ -603,10 +763,10 @@ export function App() {
               {/* Central Chat View */}
               <ChatView
                 conversationId={activeConversationId}
-                messages={messages}
-                streamingReply={streamingReply}
-                streamingStatus={streamingStatus}
-                isGenerating={isGenerating}
+                messages={conversationsMessages[activeConversationId || 'new'] || []}
+                streamingReply={streamingReplies[activeConversationId || 'new'] || ''}
+                streamingStatus={streamingStatuses[activeConversationId || 'new'] || ''}
+                isGenerating={Boolean(generatingMap[activeConversationId || 'new'])}
                 onSendMessage={handleSendMessage}
                 suggestions={suggestions}
                 onSelectSuggestion={(sug) => handleSendMessage(sug, activeWorkspace)}

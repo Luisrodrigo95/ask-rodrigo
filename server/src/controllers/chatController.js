@@ -110,22 +110,35 @@ export async function chatStreamHandler(req, res) {
 
   // Set SSE Headers
   res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
+    'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no'
   });
 
+  if (typeof res.flushHeaders === 'function') {
+    res.flushHeaders();
+  }
+
+  // Immediate handshake ping to establish connection through proxy
+  res.write(': connected\n\n');
+
   const sendEvent = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (!res.writableEnded) {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    }
   };
 
-  // Heartbeat to keep connection alive
+  // Heartbeat every 10s to keep connection alive through Nginx & proxies
   const heartbeat = setInterval(() => {
     if (!res.writableEnded) {
       res.write(': keepalive\n\n');
     }
-  }, 15000);
+  }, 10000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+  });
 
   try {
     // 1. Guest Mode SSE: Stream from Knowledge AI (zero bash/tool execution)

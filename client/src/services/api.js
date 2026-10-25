@@ -170,13 +170,15 @@ export function streamChatMessage(message, conversationId, callbacks, workspace 
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
+      let receivedAnyDelta = false;
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
+        const normalized = buffer.replace(/\r\n/g, '\n');
+        const lines = normalized.split('\n\n');
         buffer = lines.pop() || '';
 
         for (const block of lines) {
@@ -190,7 +192,10 @@ export function streamChatMessage(message, conversationId, callbacks, workspace 
 
               if (eventType === 'init' && onInit) onInit(data);
               if (eventType === 'status' && onStatus) onStatus(data);
-              if (eventType === 'delta' && onDelta) onDelta(data.text);
+              if (eventType === 'delta' && onDelta) {
+                receivedAnyDelta = true;
+                onDelta(data.text);
+              }
               if (eventType === 'done' && onDone) onDone(data);
               if (eventType === 'error' && onError) onError(data.error);
             } catch (err) {
@@ -202,9 +207,16 @@ export function streamChatMessage(message, conversationId, callbacks, workspace 
     })
     .catch(async (err) => {
       if (err.name === 'AbortError') return;
-      console.warn('[streamChatMessage] Stream error, attempting resilient fallback to POST /chat:', err.message);
+      console.warn('[streamChatMessage] Stream error:', err.message);
 
-      const maxRetries = 3;
+      // If tokens were already delivered to the client, the server process already executed.
+      // Do NOT trigger duplicate full prompt fallback because running two turns simultaneously causes "error: interrupted".
+      if (receivedAnyDelta) {
+        if (onDone) onDone({ status: 'completed' });
+        return;
+      }
+
+      const maxRetries = 2;
       let lastErr = err;
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -217,9 +229,8 @@ export function streamChatMessage(message, conversationId, callbacks, workspace 
                   : `Reintentando conexión con el servidor (${attempt}/${maxRetries})...`
             });
           }
-          // Delay with backoff between attempts to allow server/proxy recovery (1s, 2.5s)
           if (attempt > 1) {
-            await new Promise((r) => setTimeout(r, (attempt - 1) * 1500));
+            await new Promise((r) => setTimeout(r, 1200));
           }
           const res = await sendChatMessage(message, conversationId);
           if (res.conversationId && onInit) onInit({ conversationId: res.conversationId });

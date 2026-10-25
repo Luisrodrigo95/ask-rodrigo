@@ -31,9 +31,10 @@ function isYesterday(date, now) {
   return isSameDay(date, yesterday);
 }
 
-export function SessionDrawer({
+export const SessionDrawer = React.memo(function SessionDrawer({
   conversations,
   activeId,
+  generatingMap = {},
   onSelectConversation,
   onNewChat,
   onDeleteConversation,
@@ -498,13 +499,23 @@ export function SessionDrawer({
                               {!isSelectMode && (
                                 <span
                                   className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                    isActive ? 'bg-accent' : 'bg-muted/40'
+                                    generatingMap?.[conv.id]
+                                      ? 'bg-amber-400 animate-ping'
+                                      : isActive
+                                      ? 'bg-accent'
+                                      : 'bg-muted/40'
                                   }`}
                                 />
                               )}
                               <span className="truncate text-[12.5px] font-medium text-ink">
                                 {displayTitle}
                               </span>
+                              {generatingMap?.[conv.id] && (
+                                <span className="flex items-center gap-1 text-[9.5px] font-semibold text-accent bg-accent/15 px-1.5 py-0.2 rounded-full border border-accent/30 animate-pulse shrink-0">
+                                  <Sparkles className="w-2.5 h-2.5 animate-spin" />
+                                  <span className="hidden sm:inline">Ejecutando...</span>
+                                </span>
+                              )}
                             </div>
                             <span className="text-[10px] font-mono text-muted shrink-0">
                               {displayTime}
@@ -557,4 +568,5 @@ export function SessionDrawer({
       </aside>
     </>
   );
-}
+});
+

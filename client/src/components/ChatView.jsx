@@ -128,19 +128,57 @@ export function ChatView({
   const [isDragging, setIsDragging] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const messagesEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const isNearBottomRef = useRef(true);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const draftsRef = useRef({});
+  const prevConvIdRef = useRef(conversationId);
+
+  const adjustTextareaHeight = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const newHeight = Math.min(Math.max(el.scrollHeight, 46), 220);
+    el.style.height = `${newHeight}px`;
+  };
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [inputText]);
+
+  useEffect(() => {
+    if (prevConvIdRef.current !== conversationId) {
+      draftsRef.current[prevConvIdRef.current || 'new'] = inputText;
+      setInputText(draftsRef.current[conversationId || 'new'] || '');
+      setAttachedFiles([]);
+      prevConvIdRef.current = conversationId;
+      isNearBottomRef.current = true;
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+        adjustTextareaHeight();
+      }, 40);
+    }
+  }, [conversationId]);
 
   const isAdmin = currentUser?.role === 'admin';
   const ct = t.chat;
   const tw = t.workspaces;
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const threshold = 120;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+  };
+
+  const scrollToBottom = (behavior = 'auto') => {
+    if (behavior === 'auto' && !isNearBottomRef.current) return;
+    messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottom('auto');
   }, [messages, streamingReply]);
 
   useEffect(() => {
@@ -253,7 +291,7 @@ export function ChatView({
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if ((!inputText.trim() && attachedFiles.length === 0) || isGenerating || isUploading) return;
 
     let finalMessage = inputText.trim();
@@ -274,9 +312,15 @@ export function ChatView({
       }
     }
 
+    draftsRef.current[conversationId || 'new'] = '';
     setInputText('');
     setAttachedFiles([]);
     setUploadError('');
+    isNearBottomRef.current = true;
+    setTimeout(() => {
+      scrollToBottom('smooth');
+      if (inputRef.current) inputRef.current.style.height = '46px';
+    }, 40);
     onSendMessage(finalMessage, activeWorkspace);
   };
 
@@ -399,7 +443,11 @@ export function ChatView({
       </div>
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 [scrollbar-width:thin]">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-4 [scrollbar-width:thin] min-w-0 w-full"
+      >
         {messages.length === 0 && !streamingReply ? (
           <div className="max-w-2xl mx-auto py-10 text-center space-y-4">
             <div className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center shadow-v2-md ${
@@ -444,7 +492,7 @@ export function ChatView({
             return (
               <div
                 key={index}
-                className={`flex gap-3 max-w-4xl mx-auto ${isUser ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-2.5 sm:gap-3 max-w-4xl mx-auto w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 {!isUser && (
                   <div className={`w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0 mt-0.5 shadow-v2-sm border ${
@@ -457,7 +505,7 @@ export function ChatView({
                 )}
 
                 <div
-                  className={`relative group rounded-[16px] px-3.5 sm:px-4 py-2.5 sm:py-3 max-w-[92%] sm:max-w-[85%] text-xs sm:text-sm leading-relaxed ${
+                  className={`relative group rounded-[16px] px-3.5 sm:px-4 py-2.5 sm:py-3 max-w-[92%] sm:max-w-[85%] min-w-0 text-xs sm:text-sm leading-relaxed break-words [overflow-wrap:anywhere] ${
                     isUser
                       ? 'bg-accent text-white rounded-tr-none shadow-v2-sm'
                       : 'bg-panel border border-edge text-ink rounded-tl-none shadow-v2-sm'
@@ -466,9 +514,9 @@ export function ChatView({
                   {isUser ? (
                     renderUserMessage(msg.content)
                   ) : (
-                    <div>
+                    <div className="min-w-0 w-full">
                       <div
-                        className="prose prose-invert prose-sm max-w-none prose-pre:bg-sunken prose-pre:border prose-pre:border-edge prose-pre:rounded-[10px] prose-a:text-accent"
+                        className="prose prose-invert prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] prose-pre:bg-sunken prose-pre:border prose-pre:border-edge prose-pre:rounded-[10px] prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:whitespace-pre prose-code:break-words prose-table:block prose-table:max-w-full prose-table:overflow-x-auto prose-a:text-accent prose-a:break-all"
                         dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
                       />
 
@@ -526,7 +574,7 @@ export function ChatView({
 
         {/* Live Streaming Delta */}
         {streamingReply && (
-          <div className="flex gap-3 max-w-4xl mx-auto justify-start">
+          <div className="flex gap-2.5 sm:gap-3 max-w-4xl mx-auto w-full min-w-0 justify-start">
             <div className={`w-8 h-8 rounded-[10px] border flex items-center justify-center shrink-0 mt-0.5 animate-pulse ${
               isAdmin 
                 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
@@ -534,9 +582,9 @@ export function ChatView({
             }`}>
               {isAdmin ? <Terminal className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
             </div>
-            <div className="rounded-[16px] px-3.5 sm:px-4 py-2.5 sm:py-3 max-w-[92%] sm:max-w-[85%] text-xs sm:text-sm bg-panel border border-accent/40 text-ink rounded-tl-none shadow-v2-md">
+            <div className="rounded-[16px] px-3.5 sm:px-4 py-2.5 sm:py-3 max-w-[92%] sm:max-w-[85%] min-w-0 text-xs sm:text-sm bg-panel border border-accent/40 text-ink rounded-tl-none shadow-v2-md break-words [overflow-wrap:anywhere]">
               <div
-                className="prose prose-invert prose-sm max-w-none prose-pre:bg-sunken prose-pre:border prose-pre:border-edge prose-pre:rounded-[10px] prose-a:text-accent"
+                className="prose prose-invert prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] prose-pre:bg-sunken prose-pre:border prose-pre:border-edge prose-pre:rounded-[10px] prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:whitespace-pre prose-code:break-words prose-table:block prose-table:max-w-full prose-table:overflow-x-auto prose-a:text-accent prose-a:break-all"
                 dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingReply) }}
               />
               <span className="inline-block w-2 h-4 bg-accent ml-1 animate-ping" />
@@ -546,7 +594,7 @@ export function ChatView({
 
         {/* Status indicator */}
         {isGenerating && !streamingReply && (
-          <div className="flex items-center gap-2 max-w-4xl mx-auto text-xs text-accent font-mono py-2 px-1">
+          <div className="flex items-center gap-2 max-w-4xl mx-auto w-full min-w-0 text-xs text-accent font-mono py-2 px-1">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-accent" />
             <span>{streamingStatus || (isAdmin ? ct.processingAdmin : ct.processingGuest)}</span>
           </div>
@@ -555,36 +603,40 @@ export function ChatView({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Box Footer (Ask Marvin Style: rounded-[20px] shadow-v2-md bg-panel border-edge) */}
-      <div className="p-3 border-t border-edge bg-paper/80 backdrop-blur-md">
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative">
+      {/* Input Box Footer (Modern Card Style with dynamic auto-height & non-blocking writing) */}
+      <div className="p-2.5 sm:p-4 border-t border-edge bg-paper/90 backdrop-blur-md shrink-0">
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative flex flex-col gap-2">
           {/* Attached Files & Upload Status Badges */}
           {(attachedFiles.length > 0 || isUploading || uploadError) && (
-            <div className="flex flex-wrap items-center gap-2 mb-2 px-1">
+            <div className="flex flex-wrap items-center gap-2 px-1">
               {attachedFiles.map((f, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-[10px] bg-panel border border-accent/40 text-xs text-ink shadow-v2-sm animate-fadeIn"
+                  className="group/pill flex items-center gap-2 px-2.5 py-1.5 rounded-[12px] bg-panel border border-accent/40 text-xs text-ink shadow-v2-sm hover:border-accent transition-all animate-fadeIn"
                 >
                   {f.isImage && (f.previewUrl || f.url) ? (
                     <img
                       src={f.previewUrl || f.url}
                       alt={f.originalName}
-                      className="w-7 h-7 object-cover rounded-md border border-edge shrink-0 shadow-sm"
+                      className="w-8 h-8 object-cover rounded-lg border border-edge/80 shrink-0 shadow-sm"
                     />
                   ) : (
-                    <FileText className="w-3.5 h-3.5 text-accent shrink-0" />
+                    <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-accent" />
+                    </div>
                   )}
-                  <span className="font-mono text-[11px] max-w-[180px] sm:max-w-[260px] truncate font-medium">
-                    {f.originalName}
-                  </span>
-                  <span className="text-[10px] text-accent font-mono">
-                    {formatFileSize(f.size)}
-                  </span>
+                  <div className="min-w-0 flex flex-col">
+                    <span className="font-mono text-[11px] max-w-[140px] sm:max-w-[220px] truncate font-medium text-ink">
+                      {f.originalName}
+                    </span>
+                    <span className="text-[10px] text-accent font-mono">
+                      {formatFileSize(f.size)}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeAttachment(idx)}
-                    className="text-muted hover:text-rose-400 transition-colors p-0.5 rounded cursor-pointer"
+                    className="text-muted hover:text-rose-400 p-1 rounded-md hover:bg-rose-500/10 transition-colors cursor-pointer ml-1"
                     title={ct.removeAttachment}
                   >
                     <X className="w-3.5 h-3.5" />
@@ -592,89 +644,143 @@ export function ChatView({
                 </div>
               ))}
               {isUploading && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] bg-panel border border-edge text-xs text-accent animate-pulse font-mono">
-                  <RefreshCw className="w-3 h-3 animate-spin" />
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-[12px] bg-panel border border-accent/40 text-xs text-accent font-mono shadow-v2-sm">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   <span className="text-[11px]">{ct.uploadingFile}</span>
                 </div>
               )}
               {uploadError && (
-                <div className="flex items-center gap-1 text-[11px] text-rose-400 font-mono bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-[10px]">
-                  <AlertCircle className="w-3 h-3" />
+                <div className="flex items-center gap-1.5 text-[11px] text-rose-400 font-mono bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-[12px]">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   <span>{uploadError}</span>
                 </div>
               )}
             </div>
           )}
 
+          {/* Main Card Container */}
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`relative flex items-center rounded-[20px] bg-panel border shadow-v2-md focus-within:border-accent focus-within:ring-1 focus-within:ring-accent transition-all p-1.5 ${
+            className={`relative flex flex-col rounded-[20px] bg-panel border shadow-v2-md transition-all p-2 sm:p-2.5 ${
               isDragging
                 ? 'border-accent bg-accent/10 ring-2 ring-accent/30'
-                : 'border-edge'
+                : 'border-edge focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/20'
             }`}
           >
             {/* Visual Dropzone Indicator */}
             {isDragging && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[20px] bg-paper/90 backdrop-blur-xs text-accent font-medium text-xs pointer-events-none gap-2">
-                <UploadCloud className="w-4 h-4 animate-bounce" />
+              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[20px] bg-panel/95 border-2 border-dashed border-accent backdrop-blur-xs text-accent font-medium text-xs pointer-events-none gap-2">
+                <UploadCloud className="w-5 h-5 animate-bounce" />
                 <span>Suelta aquí tu imagen o archivo para adjuntarlo</span>
               </div>
             )}
 
-            {/* Admin File Upload Button */}
-            {isAdmin && (
-              <>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.svg,.bmp,.ico,.txt,.log,.md,.markdown,.js,.mjs,.cjs,.ts,.jsx,.tsx,.py,.json,.sh,.bash,.zsh,.yml,.yaml,.css,.scss,.html,.sql,.env,.csv,.tsv,.xml,.conf,.ini,.cfg,.patch,.diff,.java,.c,.cpp,.h,.hpp,.rs,.go,.php,.rb,.toml"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isGenerating || isUploading}
-                  title={ct.attachFile}
-                  className="p-2 rounded-[12px] text-muted hover:text-accent hover:bg-sunken transition-all active:scale-95 disabled:opacity-40 cursor-pointer"
-                >
-                  <Paperclip className="w-4 h-4" />
-                </button>
-              </>
-            )}
-
+            {/* Input Textarea (Auto-resizing, user can type anytime) */}
             <textarea
               ref={inputRef}
-              rows="2"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              disabled={isGenerating}
               placeholder={
                 isGenerating
-                  ? ct.generating
+                  ? 'Rodrigo está respondiendo... Puedes redactar tu siguiente mensaje aquí.'
                   : isAdmin
                     ? `[${activeWorkspace.toUpperCase()}] ${ct.placeholderAdmin}`
                     : ct.placeholderGuest
               }
-              className="w-full bg-transparent border-none text-xs sm:text-sm text-ink placeholder-muted/60 focus:outline-none focus:ring-0 resize-none px-3 py-1.5"
+              rows="1"
+              className="w-full bg-transparent border-none text-xs sm:text-sm text-ink placeholder-muted/60 focus:outline-none focus:ring-0 resize-none px-2 sm:px-3 pt-1.5 pb-2 min-h-[46px] max-h-[220px] [scrollbar-width:thin] leading-relaxed"
             />
 
-            <button
-              type="submit"
-              disabled={(!inputText.trim() && attachedFiles.length === 0) || isGenerating || isUploading}
-              className={`p-2.5 rounded-[14px] transition-all shrink-0 ${
-                (inputText.trim() || attachedFiles.length > 0) && !isGenerating && !isUploading
-                  ? 'bg-accent hover:bg-accent/90 text-white shadow-v2-sm active:scale-95 cursor-pointer'
-                  : 'bg-sunken text-muted/40 cursor-not-allowed'
-              }`}
-            >
-              <Send className="w-4 h-4" />
-            </button>
+            {/* Box Action Toolbar (bottom row) */}
+            <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-edge/40 px-1">
+              {/* Left Actions: File attachment & Workspace pill & Clear button */}
+              <div className="flex items-center gap-1.5 min-w-0">
+                {isAdmin && (
+                  <>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.svg,.bmp,.ico,.txt,.log,.md,.markdown,.js,.mjs,.cjs,.ts,.jsx,.tsx,.py,.json,.sh,.bash,.zsh,.yml,.yaml,.css,.scss,.html,.sql,.env,.csv,.tsv,.xml,.conf,.ini,.cfg,.patch,.diff,.java,.c,.cpp,.h,.hpp,.rs,.go,.php,.rb,.toml"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      title={ct.attachFile}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-[10px] text-muted hover:text-accent hover:bg-sunken transition-all cursor-pointer text-xs"
+                    >
+                      <Paperclip className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline font-mono text-[11px]">Adjuntar</span>
+                    </button>
+                  </>
+                )}
+
+                {isAdmin && activeWorkspace && (
+                  <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-[8px] bg-sunken border border-edge/60 text-[10.5px] font-mono text-muted truncate max-w-[150px]">
+                    <FolderCode className="w-3 h-3 text-accent shrink-0" />
+                    <span className="truncate">{activeWorkspace}</span>
+                  </span>
+                )}
+
+                {inputText && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInputText('');
+                      if (inputRef.current) inputRef.current.style.height = '46px';
+                    }}
+                    className="text-muted hover:text-ink text-[11px] font-mono px-1.5 py-1 rounded hover:bg-sunken cursor-pointer transition-colors"
+                    title="Limpiar texto"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+
+              {/* Right Actions: Desktop Keyboard Hint & Send Button */}
+              <div className="flex items-center gap-2">
+                <span className="hidden sm:inline-block text-[10.5px] font-mono text-muted/60 select-none">
+                  Shift + ↵ salto de línea
+                </span>
+
+                <button
+                  type="submit"
+                  disabled={(!inputText.trim() && attachedFiles.length === 0) || isUploading || isGenerating}
+                  title={
+                    isGenerating
+                      ? 'Rodrigo está procesando una respuesta...'
+                      : (!inputText.trim() && attachedFiles.length === 0)
+                        ? 'Escribe un mensaje para enviar'
+                        : 'Enviar mensaje (Enter)'
+                  }
+                  className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-[12px] font-medium text-xs transition-all shrink-0 cursor-pointer ${
+                    isGenerating
+                      ? 'bg-accent/20 border border-accent/40 text-accent cursor-wait'
+                      : (inputText.trim() || attachedFiles.length > 0) && !isUploading
+                        ? 'bg-accent hover:bg-accent/90 text-white shadow-v2-sm active:scale-95'
+                        : 'bg-sunken text-muted/40 cursor-not-allowed border border-edge/40'
+                  }`}
+                >
+                  {isGenerating ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span className="hidden sm:inline">Generando</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Enviar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </form>
       </div>
