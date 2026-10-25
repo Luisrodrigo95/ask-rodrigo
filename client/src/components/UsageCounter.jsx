@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Clock,
   Calendar,
@@ -217,13 +218,13 @@ export function UsageCounter({ currentUser, t }) {
         onClick={() => setIsModalOpen((prev) => !prev)}
         title={buttonTooltip}
         aria-label="Contador de uso de IA"
-        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-[10px] text-left text-muted hover:text-ink hover:bg-paper transition-all border cursor-pointer select-none sm:px-2 sm:py-1.5 ${
+        className={`flex items-center justify-center p-1.5 rounded-[10px] text-muted hover:text-ink hover:bg-paper transition-all border cursor-pointer select-none ${
           isModalOpen
             ? 'bg-paper border-accent/50 text-accent shadow-sm ring-1 ring-accent/30'
             : 'bg-sunken border-edge hover:border-accent/30'
         }`}
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" className="shrink-0">
+        <svg width="20" height="20" viewBox="0 0 20 20" className="shrink-0 block">
           {/* Background circle track */}
           <circle
             cx="10"
@@ -248,28 +249,29 @@ export function UsageCounter({ currentUser, t }) {
             className="transition-all duration-700 ease-out"
           />
         </svg>
-
-        {/* 5-hour remaining usage label */}
-        <span className="text-[11.5px] font-mono font-medium text-ink/90 hidden sm:inline">
-          {w5.remainingPercent}% {u.remaining5hBadge || 'rest.'}
-        </span>
-        <span className="text-[11px] font-mono text-ink/90 sm:hidden">
-          {w5.remainingPercent}%
-        </span>
       </button>
 
       {/* 
         Modal / Popover Dropdown on Click 
-        Shows remaining usage for 5 hours AND weekly usage
+        Mounted directly to document.body via Portal to escape parent header stacking contexts,
+        centered cleanly on screen without top clipping, and elevated to z-[9999] so it never hides behind chat.
       */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {isModalOpen &&
+        createPortal(
           <div
-            ref={modalRef}
-            className="w-full max-w-lg bg-panel border border-edge rounded-2xl shadow-2xl overflow-hidden flex flex-col text-ink animate-in zoom-in-95 duration-150"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-sm overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setIsModalOpen(false);
+              }
+            }}
           >
+            <div
+              ref={modalRef}
+              className="relative w-full max-w-lg my-auto max-h-[90vh] bg-panel border border-edge rounded-2xl shadow-2xl flex flex-col text-ink overflow-hidden animate-fadeIn"
+            >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-edge bg-paper/50">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-edge bg-paper/50 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
                   <Activity className="w-5 h-5" />
@@ -304,7 +306,7 @@ export function UsageCounter({ currentUser, t }) {
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 space-y-4 overflow-y-auto max-h-[75vh]">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
               {/* CARD 1: 5-Hour Rolling Usage Window */}
               <div className="p-4 rounded-xl border border-edge bg-sunken/60 relative overflow-hidden">
                 <div className="flex items-center justify-between mb-3">
@@ -622,7 +624,7 @@ export function UsageCounter({ currentUser, t }) {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-5 py-3 border-t border-edge bg-paper/50 flex items-center justify-between text-xs text-muted">
+            <div className="px-5 py-3 border-t border-edge bg-paper/50 flex items-center justify-between text-xs text-muted shrink-0">
               <span className="font-mono text-[11px]">
                 {usage?.timestamp ? `Actualizado: ${new Date(usage.timestamp).toLocaleTimeString()}` : ''}
               </span>
@@ -634,7 +636,8 @@ export function UsageCounter({ currentUser, t }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
