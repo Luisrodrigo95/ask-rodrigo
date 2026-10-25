@@ -28,7 +28,9 @@ import {
   Activity,
   ChevronDown,
   Zap,
-  Brain
+  Brain,
+  Square,
+  Pencil
 } from 'lucide-react';
 import { marked } from 'marked';
 import { uploadAdminFile } from '../services/api.js';
@@ -122,6 +124,7 @@ export function ChatView({
   streamingReply,
   streamingStatus,
   isGenerating,
+  onStopGeneration,
   onSendMessage,
   suggestions,
   onSelectSuggestion,
@@ -894,7 +897,36 @@ export function ChatView({
                   }`}
                 >
                   {isUser ? (
-                    renderUserMessage(msg.content)
+                    <div className="space-y-1.5">
+                      {renderUserMessage(msg.content)}
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/15 text-[11px] text-white/70 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInputText(msg.content);
+                            if (inputRef.current) {
+                              inputRef.current.focus();
+                              setTimeout(() => {
+                                try {
+                                  inputRef.current.selectionStart = inputRef.current.selectionEnd = inputRef.current.value.length;
+                                } catch {}
+                              }, 50);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 hover:text-white transition-colors cursor-pointer text-[10px]"
+                          title={ct.editPrompt || (language === 'es' ? 'Editar y reutilizar este mensaje' : 'Edit and reuse this prompt')}
+                        >
+                          <Pencil className="w-3 h-3" />
+                          <span>{ct.editPromptShort || (language === 'es' ? 'Editar' : 'Edit')}</span>
+                        </button>
+                        {msg.time && (
+                          <span className="font-mono text-[10px] text-white/60 flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5" />
+                            {new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   ) : (
                     <div className="min-w-0 w-full">
                       {/* Verbose Tool Actions (Collapsible items, minimized by default) */}
@@ -990,9 +1022,22 @@ export function ChatView({
                   <span className="inline-block w-2 h-4 bg-accent ml-1 animate-ping" />
                 </>
               ) : isGenerating ? (
-                <div className="flex items-center gap-2 text-xs text-accent font-mono py-1">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>{streamingStatus || (isAdmin ? ct.processingAdmin : ct.processingGuest)}</span>
+                <div className="flex items-center justify-between gap-2 text-xs text-accent font-mono py-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    <span className="truncate">{streamingStatus || (isAdmin ? ct.processingAdmin : ct.processingGuest)}</span>
+                  </div>
+                  {onStopGeneration && (
+                    <button
+                      type="button"
+                      onClick={onStopGeneration}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[11px] transition-colors cursor-pointer shrink-0"
+                      title={ct.stopTitle || (language === 'es' ? 'Detener respuesta' : 'Stop generating response')}
+                    >
+                      <Square className="w-2.5 h-2.5 fill-current" />
+                      <span>{ct.stopBtn || (language === 'es' ? 'Detener' : 'Stop')}</span>
+                    </button>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -1001,9 +1046,22 @@ export function ChatView({
 
         {/* Status indicator (when no streamingReply and no streamingTools) */}
         {isGenerating && !streamingReply && (!verboseMode || !streamingTools || streamingTools.length === 0) && (
-          <div className="flex items-center gap-2 max-w-4xl mx-auto w-full min-w-0 text-xs text-accent font-mono py-2 px-1">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin text-accent" />
-            <span>{streamingStatus || (isAdmin ? ct.processingAdmin : ct.processingGuest)}</span>
+          <div className="flex items-center justify-between gap-2 max-w-4xl mx-auto w-full min-w-0 text-xs text-accent font-mono py-2 px-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-accent shrink-0" />
+              <span className="truncate">{streamingStatus || (isAdmin ? ct.processingAdmin : ct.processingGuest)}</span>
+            </div>
+            {onStopGeneration && (
+              <button
+                type="button"
+                onClick={onStopGeneration}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs transition-colors cursor-pointer shrink-0 shadow-xs"
+                title={ct.stopTitle || (language === 'es' ? 'Detener respuesta' : 'Stop generating response')}
+              >
+                <Square className="w-3 h-3 fill-current" />
+                <span>{ct.stopBtn || (language === 'es' ? 'Detener' : 'Stop')}</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -1172,11 +1230,23 @@ export function ChatView({
                 )}
               </div>
 
-              {/* Right Actions: Desktop Keyboard Hint & Send Button */}
-              <div className="flex items-center gap-2">
+              {/* Right Actions: Desktop Keyboard Hint, Stop Button & Send Button */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="hidden sm:inline-block text-[10.5px] font-mono text-muted/60 select-none">
                   Shift + ↵ {ct.lineBreakHint || (language === 'es' ? 'salto de línea' : 'line break')}
                 </span>
+
+                {isGenerating && onStopGeneration && (
+                  <button
+                    type="button"
+                    onClick={onStopGeneration}
+                    title={ct.stopTitle || (language === 'es' ? 'Detener respuesta en curso' : 'Stop generating response')}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[12px] font-medium text-xs bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 transition-all shrink-0 cursor-pointer shadow-v2-sm active:scale-95"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                    <span>{ct.stopBtn || (language === 'es' ? 'Detener' : 'Stop')}</span>
+                  </button>
+                )}
 
                 <button
                   type="submit"

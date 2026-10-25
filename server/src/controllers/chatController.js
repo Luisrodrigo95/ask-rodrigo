@@ -110,6 +110,8 @@ const WORKSPACE_MAP = {
   wiwishop: '/var/www/my-portfolio/public/wiwishop'
 };
 
+const activeExecutions = new Map();
+
 /**
  * Server-Sent Events (SSE) streaming endpoint for live token generation.
  * GET or POST /api/chat/stream
@@ -147,6 +149,21 @@ export async function chatStreamHandler(req, res) {
     }
   };
 
+  const abortController = new AbortController();
+  const clientKey = conversationId || `exec-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  let activeConvId = conversationId || null;
+
+  const execObj = {
+    abort: () => {
+      try {
+        abortController.abort();
+      } catch {}
+    },
+    abortController
+  };
+
+  activeExecutions.set(clientKey, execObj);
+
   // Heartbeat every 10s to keep connection alive through Nginx & proxies
   const heartbeat = setInterval(() => {
     if (!res.writableEnded) {
@@ -156,6 +173,13 @@ export async function chatStreamHandler(req, res) {
 
   req.on('close', () => {
     clearInterval(heartbeat);
+    if (!res.writableEnded) {
+      try {
+        abortController.abort();
+      } catch {}
+    }
+    activeExecutions.delete(clientKey);
+    if (activeConvId) activeExecutions.delete(activeConvId);
   });
 
   try {
@@ -165,15 +189,16 @@ export async function chatStreamHandler(req, res) {
       sendEvent('status', { message: 'Connecting to Ask Rodrigo AI (Guest Mode)...' });
 
       try {
-        let activeConvId = conversationId || null;
         const result = await executeAgyPrompt(message.trim(), {
           conversationId: activeConvId,
           isGuest: true,
           cwd: '/var/www/my-portfolio',
           model,
           effort,
+          signal: abortController.signal,
           onInit: (assignedId) => {
             activeConvId = assignedId;
+            activeExecutions.set(assignedId, execObj);
             sendEvent('init', { conversationId: assignedId });
           },
           onDelta: (textChunk) => {
@@ -196,11 +221,17 @@ export async function chatStreamHandler(req, res) {
         res.end();
         return;
       } catch (errGuest) {
+        if (abortController.signal.aborted) {
+          sendEvent('aborted', { message: 'Generation cancelled by user' });
+          res.end();
+          return;
+        }
         console.warn('[ChatController] Guest AGy stream error, falling back:', errGuest.message);
         const knowledgeRes = await generateChatResponse(message.trim(), [], { isGuest: true, model, effort });
         const fullText = knowledgeRes.reply || '';
         const chunkSize = 25;
         for (let i = 0; i < fullText.length; i += chunkSize) {
+          if (abortController.signal.aborted) break;
           const slice = fullText.slice(i, i + chunkSize);
           sendEvent('delta', { text: slice });
           await new Promise(r => setTimeout(r, 15));
@@ -221,8 +252,6 @@ export async function chatStreamHandler(req, res) {
     const targetCwd = (workspace && WORKSPACE_MAP[workspace.toLowerCase()]) || '/home/bombi';
     sendEvent('status', { message: `Iniciando turno en AGy-cli (${workspace || 'normal'} -> ${targetCwd})...` });
 
-    let activeConvId = conversationId || null;
-
     let effectiveMessage = message.trim();
     if (!req.user?.canEditProjects && !req.user?.isOwner) {
       effectiveMessage = `[RESTRICCIÓN DE SEGURIDAD]: El usuario actual (${req.user?.name} <${req.user?.email}>) tiene rol de Colaborador con permiso de SOLO LECTURA sobre los proyectos del servidor. NO tiene autorización para editar, modificar, borrar o sobreescribir archivos en /var/www ni proyectos existentes hasta que Rodrigo lo autorice expresamente. Puedes responder sus dudas, explicar el código o crear archivos en /home/bombi/uploads, pero NUNCA modifiques el código existente.\n\nConsulta del usuario:\n${message.trim()}`;
@@ -233,8 +262,10 @@ export async function chatStreamHandler(req, res) {
       cwd: targetCwd,
       model,
       effort,
+      signal: abortController.signal,
       onInit: (assignedId) => {
         activeConvId = assignedId;
+        activeExecutions.set(assignedId, execObj);
         sendEvent('init', { conversationId: assignedId });
       },
       onDelta: (textChunk) => {
@@ -257,11 +288,42 @@ export async function chatStreamHandler(req, res) {
 
     res.end();
   } catch (errStream) {
-    console.error('[ChatController SSE Error]:', errStream);
-    sendEvent('error', { error: errStream.message });
+    if (abortController.signal.aborted || errStream.message?.includes('aborted')) {
+      sendEvent('aborted', { message: 'Turn stopped by user' });
+    } else {
+      console.error('[ChatController SSE Error]:', errStream);
+      sendEvent('error', { error: errStream.message });
+    }
     res.end();
   } finally {
     clearInterval(heartbeat);
+    activeExecutions.delete(clientKey);
+    if (activeConvId) activeExecutions.delete(activeConvId);
+  }
+}
+
+/**
+ * Stops an active chat generation for a given conversation.
+ * POST /api/chat/stop
+ */
+export async function chatStopHandler(req, res) {
+  try {
+    const { conversationId } = req.body || {};
+    if (!conversationId) {
+      return res.status(400).json({ error: 'conversationId es requerido.' });
+    }
+
+    const exec = activeExecutions.get(conversationId);
+    if (exec) {
+      exec.abort();
+      activeExecutions.delete(conversationId);
+      return res.json({ ok: true, stopped: true, message: 'Turno cancelado exitosamente.' });
+    }
+
+    return res.json({ ok: true, stopped: false, message: 'No hay turno activo para cancelar.' });
+  } catch (err) {
+    console.error('[chatStopHandler Error]:', err);
+    return res.status(500).json({ error: 'Error deteniendo la generación.', details: err.message });
   }
 }
 

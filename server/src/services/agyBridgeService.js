@@ -108,7 +108,7 @@ export async function executeAgyPrompt(message, options = {}) {
       args.push('--sandbox');
     }
 
-    if (conversationId && typeof conversationId === 'string' && conversationId.trim() !== '') {
+    if (conversationId && typeof conversationId === 'string' && conversationId.trim() !== '' && !conversationId.startsWith('draft-')) {
       args.push('--conversation', conversationId.trim());
     }
 
@@ -124,12 +124,35 @@ export async function executeAgyPrompt(message, options = {}) {
     let accumulatedReply = '';
     let resultMeta = null;
     let timedOut = false;
+    let aborted = false;
 
     const child = spawn(AGY_BIN, args, {
       cwd: effectiveCwd,
       env,
       stdio: ['pipe', 'pipe', 'pipe']
     });
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        try { child.kill('SIGTERM'); } catch {}
+        return reject(new Error('Turn aborted by client'));
+      }
+      options.signal.addEventListener('abort', () => {
+        aborted = true;
+        clearTimeout(timer);
+        try {
+          if (child && !child.killed) {
+            child.kill('SIGTERM');
+            setTimeout(() => {
+              try { if (!child.killed) child.kill('SIGKILL'); } catch {}
+            }, 1000);
+          }
+        } catch (e) {
+          console.warn('[AGy Bridge signal abort error]:', e.message);
+        }
+        reject(new Error('Turn aborted by client'));
+      }, { once: true });
+    }
 
     child.stdin.on('error', (err) => {
       if (err.code !== 'EPIPE') {
@@ -213,14 +236,14 @@ export async function executeAgyPrompt(message, options = {}) {
 
     child.on('error', (err) => {
       clearTimeout(timer);
-      if (!timedOut) {
+      if (!timedOut && !aborted) {
         reject(new Error(`Failed to spawn agy binary (${AGY_BIN}): ${err.message}`));
       }
     });
 
     child.on('close', (code) => {
       clearTimeout(timer);
-      if (timedOut) return;
+      if (timedOut || aborted) return;
 
       if (code !== 0 && !accumulatedReply.trim()) {
         const errorMsg = stderrOutput.trim() || `agy exited with non-zero exit code ${code}`;
@@ -293,14 +316,19 @@ export async function listAgyConversations(limit = 100) {
 
     const meta = getConversationsMeta();
     const items = JSON.parse(stdout);
-    return items.map((item) => ({
-      id: item.conversation_id,
-      title: item.title || item.preview || 'Conversación sin título',
-      preview: item.preview || '',
-      lastModified: item.last_modified_time,
-      stepCount: Number(item.step_count) || 0,
-      archived: Boolean(meta[item.conversation_id]?.archived)
-    }));
+    return items.map((item) => {
+      const textPreview = item.preview || item.title || '';
+      return {
+        id: item.conversation_id,
+        title: item.title || item.preview || 'Conversación sin título',
+        preview: textPreview,
+        snippet: textPreview,
+        lastModified: item.last_modified_time,
+        updatedAt: item.last_modified_time,
+        stepCount: Number(item.step_count) || 0,
+        archived: Boolean(meta[item.conversation_id]?.archived)
+      };
+    });
   } catch (error) {
     console.error('[AGy Bridge Error] listAgyConversations failed:', error.message);
     return [];

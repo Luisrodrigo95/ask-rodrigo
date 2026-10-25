@@ -2,6 +2,7 @@ import express from 'express';
 import {
   chatHandler,
   chatStreamHandler,
+  chatStopHandler,
   conversationsHandler,
   conversationDetailHandler,
   deleteConversationHandler,
@@ -84,6 +85,7 @@ router.get('/suggestions', suggestionsHandler);
 // --- Interactive Chat (Guests: Safe Knowledge AI / Admin: Native AGy-cli) ---
 router.post('/chat', chatHandler);
 router.all('/chat/stream', chatStreamHandler);
+router.post('/chat/stop', chatStopHandler);
 
 // --- AI Token Usage & Rate Limits (5h & Weekly) ---
 router.get('/usage', getUsageHandler);

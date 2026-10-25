@@ -71,7 +71,7 @@ export const SessionDrawer = React.memo(function SessionDrawer({
     if (activeFilter === 'archived') {
       list = list.filter((c) => Boolean(c.archived));
     } else if (activeFilter === 'questions') {
-      list = list.filter((c) => !c.archived && ((c.title || '').includes('?') || (c.snippet || '').includes('?')));
+      list = list.filter((c) => !c.archived && ((c.title || '').includes('?') || (c.snippet || '').includes('?') || (c.preview || '').includes('?')));
     } else if (activeFilter === 'active') {
       list = list.filter((c) => !c.archived);
     } else {
@@ -84,7 +84,7 @@ export const SessionDrawer = React.memo(function SessionDrawer({
       const q = searchQuery.toLowerCase().trim();
       list = list.filter((conv) => {
         const title = (conv.title || conv.id || '').toLowerCase();
-        const snippet = (conv.snippet || conv.lastMessage || '').toLowerCase();
+        const snippet = (conv.snippet || conv.preview || conv.lastMessage || '').toLowerCase();
         return title.includes(q) || snippet.includes(q);
       });
     }
@@ -100,7 +100,7 @@ export const SessionDrawer = React.memo(function SessionDrawer({
     const now = new Date();
 
     filteredConversations.forEach((conv) => {
-      const rawDate = conv.updatedAt || conv.createdAt || conv.timestamp;
+      const rawDate = conv.updatedAt || conv.lastModified || conv.createdAt || conv.timestamp;
       const convDate = rawDate ? new Date(rawDate) : new Date();
 
       if (isNaN(convDate.getTime())) {
@@ -468,9 +468,11 @@ export const SessionDrawer = React.memo(function SessionDrawer({
                   {group.items.map((conv) => {
                     const isActive = conv.id === activeId;
                     const isSelected = selectedIds.has(conv.id);
-                    const displayTitle = conv.title || `Session ${conv.id?.slice(0, 8)}`;
-                    const displaySnippet = conv.snippet || conv.lastMessage || 'No preview available';
-                    const displayTime = formatRelativeTime(conv.updatedAt || conv.createdAt);
+                    const defaultTitle = td.newChatTitle || (td.today === 'Hoy' ? 'Nuevo chat' : 'New chat');
+                    const displayTitle = conv.title || (conv.isDraft ? defaultTitle : `Session ${conv.id?.slice(0, 8)}`);
+                    const defaultNoPreview = td.noPreview || (td.today === 'Hoy' ? 'Sin vista previa' : 'No preview available');
+                    const displaySnippet = conv.snippet || conv.preview || conv.lastMessage || defaultNoPreview;
+                    const displayTime = formatRelativeTime(conv.updatedAt || conv.lastModified || conv.createdAt);
 
                     return (
                       <div

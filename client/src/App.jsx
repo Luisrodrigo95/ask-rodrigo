@@ -33,6 +33,7 @@ import {
   batchDeleteConversations,
   batchArchiveConversations,
   streamChatMessage, 
+  stopChatMessage,
   fetchMetrics, 
   fetchCalendarEvents, 
   createCalendarEvent, 
@@ -131,6 +132,7 @@ export function App() {
   });
   const [streamingTools, setStreamingTools] = useState({}); // { [convKey]: ToolItem[] }
   const streamingToolsRef = useRef({});
+  const abortControllersRef = useRef({});
 
   const handleToggleVerboseMode = () => {
     setVerboseMode((prev) => {
@@ -255,12 +257,20 @@ export function App() {
   };
 
   const handleSelectConversation = async (id) => {
+    // If switching away from an empty unsent draft, discard it from the list
+    if (activeConversationId && activeConversationId.startsWith('draft-') && activeConversationId !== id) {
+      const msgs = conversationsMessages[activeConversationId] || [];
+      if (msgs.length === 0 && !generatingMap[activeConversationId]) {
+        setConversations((prev) => prev.filter((c) => c.id !== activeConversationId));
+      }
+    }
+
     setActiveConversationId(id);
     localStorage.setItem('ask_rodrigo_active_conv', id);
     setActiveTab('chat');
 
     // Only fetch if not currently streaming to avoid overwriting live background generation
-    if (!generatingMap[id]) {
+    if (!generatingMap[id] && !id.startsWith('draft-')) {
       try {
         const detail = await fetchConversationDetail(id);
         setConversationsMessages((prev) => ({
@@ -279,7 +289,15 @@ export function App() {
     try {
       const data = await fetchConversations();
       const list = data.conversations || [];
-      setConversations(list);
+      
+      // Preserve any active draft currently in progress
+      setConversations((prev) => {
+        const activeDraft = prev.find((c) => c.isDraft || (c.id && c.id.startsWith('draft-')));
+        if (activeDraft && !list.some((c) => c.id === activeDraft.id)) {
+          return [activeDraft, ...list];
+        }
+        return list;
+      });
 
       const savedConv = localStorage.getItem('ask_rodrigo_active_conv');
       if (autoSelect && !activeConversationId && savedConv) {
@@ -300,7 +318,7 @@ export function App() {
       await loadConversations(false);
 
       // 2. If an active conversation exists, sync its latest messages from the transcript
-      if (activeConversationId) {
+      if (activeConversationId && !activeConversationId.startsWith('draft-')) {
         const detail = await fetchConversationDetail(activeConversationId);
         if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
           const lastMsg = detail.messages[detail.messages.length - 1];
@@ -340,19 +358,50 @@ export function App() {
   };
 
   const handleNewChat = () => {
-    setActiveConversationId(null);
-    localStorage.removeItem('ask_rodrigo_active_conv');
-    setActiveTab('chat');
-    if (!generatingMap['new']) {
-      setConversationsMessages((prev) => ({ ...prev, new: [] }));
-      setStreamingReplies((prev) => ({ ...prev, new: '' }));
-      setStreamingStatuses((prev) => ({ ...prev, new: '' }));
+    // If current conversation is already an empty draft, keep focus there
+    if (activeConversationId && activeConversationId.startsWith('draft-')) {
+      const msgs = conversationsMessages[activeConversationId] || [];
+      if (msgs.length === 0 && !generatingMap[activeConversationId]) {
+        setActiveTab('chat');
+        return;
+      }
     }
+
+    const defaultTitle = t?.drawer?.newChatTitle || (language === 'es' ? 'Nuevo chat' : 'New chat');
+    const defaultSnippet = t?.drawer?.noPreview || (language === 'es' ? 'Sin vista previa' : 'No preview available');
+    const draftId = `draft-${Date.now()}`;
+
+    const draftConv = {
+      id: draftId,
+      title: defaultTitle,
+      snippet: defaultSnippet,
+      preview: defaultSnippet,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+      stepCount: 0,
+      isDraft: true
+    };
+
+    setActiveConversationId(draftId);
+    localStorage.setItem('ask_rodrigo_active_conv', draftId);
+    setActiveTab('chat');
+
+    if (currentUser?.role === 'admin') {
+      setConversations((prev) => [draftConv, ...prev.filter((c) => c.id !== draftId)]);
+    }
+
+    setConversationsMessages((prev) => ({ ...prev, [draftId]: [] }));
+    setStreamingReplies((prev) => ({ ...prev, [draftId]: '' }));
+    setStreamingStatuses((prev) => ({ ...prev, [draftId]: '' }));
+    setStreamingTools((prev) => ({ ...prev, [draftId]: [] }));
   };
 
   const handleDeleteConversation = async (id) => {
     try {
-      await deleteConversation(id);
+      if (!id.startsWith('draft-')) {
+        await deleteConversation(id);
+      }
       setConversations((prev) => prev.filter((c) => c.id !== id));
       setConversationsMessages((prev) => {
         const copy = { ...prev };
@@ -374,6 +423,15 @@ export function App() {
         delete copy[id];
         return copy;
       });
+      setStreamingTools((prev) => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      if (abortControllersRef.current[id]) {
+        try { abortControllersRef.current[id](); } catch {}
+        delete abortControllersRef.current[id];
+      }
       if (activeConversationId === id) {
         handleNewChat();
       }
@@ -385,7 +443,10 @@ export function App() {
   const handleBatchDeleteConversations = async (ids) => {
     if (!Array.isArray(ids) || ids.length === 0) return;
     try {
-      await batchDeleteConversations(ids);
+      const realIds = ids.filter((id) => !id.startsWith('draft-'));
+      if (realIds.length > 0) {
+        await batchDeleteConversations(realIds);
+      }
       setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
       setConversationsMessages((prev) => {
         const copy = { ...prev };
@@ -407,6 +468,17 @@ export function App() {
         ids.forEach((id) => delete copy[id]);
         return copy;
       });
+      setStreamingTools((prev) => {
+        const copy = { ...prev };
+        ids.forEach((id) => delete copy[id]);
+        return copy;
+      });
+      ids.forEach((id) => {
+        if (abortControllersRef.current[id]) {
+          try { abortControllersRef.current[id](); } catch {}
+          delete abortControllersRef.current[id];
+        }
+      });
       if (ids.includes(activeConversationId)) {
         handleNewChat();
       }
@@ -418,7 +490,10 @@ export function App() {
   const handleBatchArchiveConversations = async (ids, archived = true) => {
     if (!Array.isArray(ids) || ids.length === 0) return;
     try {
-      await batchArchiveConversations(ids, archived);
+      const realIds = ids.filter((id) => !id.startsWith('draft-'));
+      if (realIds.length > 0) {
+        await batchArchiveConversations(realIds, archived);
+      }
       setConversations((prev) =>
         prev.map((c) => (ids.includes(c.id) ? { ...c, archived: Boolean(archived) } : c))
       );
@@ -603,9 +678,22 @@ export function App() {
       pendingDeltaTimer = null;
     };
 
-    streamChatMessage(
+    if (startConvId && startConvId.startsWith('draft-')) {
+      const cleanSnippet = text.trim().replace(/\s+/g, ' ');
+      const autoTitle = cleanSnippet.length > 36 ? cleanSnippet.slice(0, 36) + '...' : cleanSnippet;
+      const autoSnippet = cleanSnippet.length > 80 ? cleanSnippet.slice(0, 80) + '...' : cleanSnippet;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === startConvId
+            ? { ...c, title: autoTitle, snippet: autoSnippet, preview: autoSnippet, updatedAt: new Date().toISOString() }
+            : c
+        )
+      );
+    }
+
+    const abortFn = streamChatMessage(
       text,
-      currentConvId,
+      currentConvId && currentConvId.startsWith('draft-') ? null : currentConvId,
       {
         onInit: (data) => {
           if (data.conversationId && currentUser?.role === 'admin') {
@@ -615,6 +703,15 @@ export function App() {
             // If trackedKey was a draft, migrate tracking to assignedId
             if (trackedKey !== assignedId) {
               const oldKey = trackedKey;
+              if (abortControllersRef.current[oldKey]) {
+                abortControllersRef.current[assignedId] = abortControllersRef.current[oldKey];
+                delete abortControllersRef.current[oldKey];
+              }
+
+              setConversations((prev) =>
+                prev.map((c) => (c.id === oldKey ? { ...c, id: assignedId, isDraft: false } : c))
+              );
+
               setGeneratingMap((prev) => {
                 const next = { ...prev, [assignedId]: true };
                 delete next[oldKey];
@@ -699,6 +796,7 @@ export function App() {
         },
         onDone: (meta) => {
           if (pendingDeltaTimer) clearTimeout(pendingDeltaTimer);
+          delete abortControllersRef.current[trackedKey];
           const finalReply = accumulatedText || 'Completed.';
           const toolsForThisTurn = streamingToolsRef.current[trackedKey] || [];
 
@@ -746,6 +844,7 @@ export function App() {
         },
         onError: (errMsg) => {
           if (pendingDeltaTimer) clearTimeout(pendingDeltaTimer);
+          delete abortControllersRef.current[trackedKey];
           setGeneratingMap((prev) => {
             const next = { ...prev };
             delete next[trackedKey];
@@ -780,6 +879,73 @@ export function App() {
         effort: thinkingEffort
       }
     );
+
+    abortControllersRef.current[startKey] = abortFn;
+  };
+
+  const handleStopGeneration = async (chatId) => {
+    const targetId = chatId || activeConversationId || 'new';
+
+    // 1. Abort local fetch stream
+    if (abortControllersRef.current[targetId]) {
+      try {
+        abortControllersRef.current[targetId]();
+      } catch (e) {
+        console.warn('Error aborting local stream:', e);
+      }
+      delete abortControllersRef.current[targetId];
+    }
+
+    // 2. Call backend stop endpoint to kill process
+    if (currentUser?.role === 'admin' && !targetId.startsWith('draft-') && targetId !== 'new') {
+      try {
+        await stopChatMessage(targetId);
+      } catch (e) {
+        console.warn('Error sending stop to backend:', e);
+      }
+    }
+
+    // 3. Clear generating flags
+    const partialText = streamingReplies[targetId] || '';
+    const toolsForThisTurn = streamingToolsRef.current[targetId] || [];
+
+    setGeneratingMap((prev) => {
+      const next = { ...prev };
+      delete next[targetId];
+      return next;
+    });
+    setStreamingStatuses((prev) => {
+      const next = { ...prev };
+      delete next[targetId];
+      return next;
+    });
+    setStreamingReplies((prev) => {
+      const next = { ...prev };
+      delete next[targetId];
+      return next;
+    });
+    setStreamingTools((prev) => {
+      const next = { ...prev };
+      delete next[targetId];
+      return next;
+    });
+    delete streamingToolsRef.current[targetId];
+
+    // 4. Append partial response if any, marked as stopped
+    if (partialText.trim()) {
+      const stoppedNotice = t.chat?.responseStopped || (language === 'es' ? '(Respuesta detenida por el usuario)' : '(Response stopped by user)');
+      const assistantMsg = {
+        role: 'assistant',
+        content: `${partialText.trim()}\n\n*${stoppedNotice}*`,
+        time: new Date().toISOString(),
+        tools: toolsForThisTurn.length > 0 ? toolsForThisTurn : undefined
+      };
+
+      setConversationsMessages((prev) => ({
+        ...prev,
+        [targetId]: [...(prev[targetId] || []), assistantMsg]
+      }));
+    }
   };
 
   // 5. Speech Synthesis with language and rate support
@@ -931,6 +1097,7 @@ export function App() {
                 streamingReply={streamingReplies[activeConversationId || 'new'] || ''}
                 streamingStatus={streamingStatuses[activeConversationId || 'new'] || ''}
                 isGenerating={Boolean(generatingMap[activeConversationId || 'new'])}
+                onStopGeneration={() => handleStopGeneration(activeConversationId || 'new')}
                 verboseMode={verboseMode}
                 onToggleVerboseMode={handleToggleVerboseMode}
                 streamingTools={streamingTools[activeConversationId || 'new'] || []}

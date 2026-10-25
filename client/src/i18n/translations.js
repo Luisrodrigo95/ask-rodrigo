@@ -89,7 +89,9 @@ export const translations = {
       batchSelectTitle: "Select multiple chats",
       cancelSelect: "Cancel multi-select",
       refreshChats: "Refresh",
-      refreshChatsTooltip: "Refresh chat list & sync messages"
+      refreshChatsTooltip: "Refresh chat list & sync messages",
+      newChatTitle: "New Chat",
+      noPreview: "No preview available"
     },
     subagents: {
       title: "Subagents & Inspector",
@@ -215,6 +217,12 @@ export const translations = {
       thinkingHighDesc: "Deep step-by-step reasoning for architecture and complex tasks.",
       refreshBtn: "Sync",
       refreshChatsTooltip: "Refresh chat and sync latest messages from server",
+      stopBtn: "Stop",
+      stopTitle: "Stop generating response",
+      editPrompt: "Edit and reuse this prompt",
+      editPromptShort: "Edit",
+      reusePrompt: "Reuse prompt",
+      responseStopped: "(Response stopped by user)",
       models: {
         gemini: "Gemini 3.8 Flash (High/Medium)",
         claudeSonnet: "Claude Sonnet 4.6 (Thinking)",
@@ -510,7 +518,9 @@ export const translations = {
       batchSelectTitle: "Seleccionar varios chats",
       cancelSelect: "Cancelar selección múltiple",
       refreshChats: "Refrescar",
-      refreshChatsTooltip: "Actualizar lista de chats y sincronizar mensajes"
+      refreshChatsTooltip: "Actualizar lista de chats y sincronizar mensajes",
+      newChatTitle: "Nuevo chat",
+      noPreview: "Sin vista previa"
     },
     subagents: {
       title: "Subagentes & Inspector",
@@ -636,6 +646,12 @@ export const translations = {
       thinkingHighDesc: "Pensamiento profundo paso a paso para análisis exhaustivo y arquitectura.",
       refreshBtn: "Sincronizar",
       refreshChatsTooltip: "Refrescar chat y sincronizar mensajes recientes del servidor",
+      stopBtn: "Detener",
+      stopTitle: "Detener respuesta en curso",
+      editPrompt: "Editar y reutilizar este mensaje",
+      editPromptShort: "Editar",
+      reusePrompt: "Reutilizar mensaje",
+      responseStopped: "(Respuesta detenida por el usuario)",
       models: {
         gemini: "Gemini 3.8 Flash (High/Medium)",
         claudeSonnet: "Claude Sonnet 4.6 (Thinking)",

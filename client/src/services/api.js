@@ -264,6 +264,26 @@ export function streamChatMessage(message, conversationId, callbacks, options = 
 }
 
 /**
+ * Sends stop signal to terminate backend AGy execution for a conversation
+ */
+export async function stopChatMessage(conversationId) {
+  try {
+    const response = await fetch(`${API_BASE}/chat/stop`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({ conversationId })
+    });
+    return await response.json();
+  } catch (err) {
+    console.warn('[stopChatMessage] Error:', err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
  * Fetches Antigravity conversations (Admin Only)
  */
 export async function fetchConversations() {
