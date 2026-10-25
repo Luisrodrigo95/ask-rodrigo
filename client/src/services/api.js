@@ -184,6 +184,7 @@ export function streamChatMessage(message, conversationId, callbacks, options = 
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
       let receivedAnyDelta = false;
+      let completedCleanly = false;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -210,12 +211,30 @@ export function streamChatMessage(message, conversationId, callbacks, options = 
                 onDelta(data.text);
               }
               if (eventType === 'tool' && onTool) onTool(data);
-              if (eventType === 'done' && onDone) onDone(data);
-              if (eventType === 'error' && onError) onError(data.error);
+              if (eventType === 'done') {
+                completedCleanly = true;
+                if (onDone) onDone(data);
+              }
+              if (eventType === 'error') {
+                completedCleanly = true;
+                if (onError) onError(data.error);
+              }
+              if (eventType === 'aborted') {
+                completedCleanly = true;
+                if (onDone) onDone({ status: 'aborted' });
+              }
             } catch (err) {
               console.warn('[SSE Parse Error]', err);
             }
           }
+        }
+      }
+
+      if (!completedCleanly) {
+        if (receivedAnyDelta) {
+          if (onDone) onDone({ status: 'completed' });
+        } else {
+          if (onError) onError('Connection terminated prematurely by server.');
         }
       }
     })
@@ -266,15 +285,17 @@ export function streamChatMessage(message, conversationId, callbacks, options = 
 /**
  * Sends stop signal to terminate backend AGy execution for a conversation
  */
-export async function stopChatMessage(conversationId) {
+export async function stopChatMessage(conversationId, cancelToken = null) {
   try {
+    const payload = { conversationId };
+    if (cancelToken) payload.cancelToken = cancelToken;
     const response = await fetch(`${API_BASE}/chat/stop`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeaders()
       },
-      body: JSON.stringify({ conversationId })
+      body: JSON.stringify(payload)
     });
     return await response.json();
   } catch (err) {

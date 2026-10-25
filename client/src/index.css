@@ -120,4 +120,51 @@
   height: auto !important;
 }
 
+/* Assistant Markdown Prose Typography Polish */
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  color: #f1f5f9;
+  font-weight: 600;
+  margin-top: 0.85rem;
+  margin-bottom: 0.4rem;
+  line-height: 1.35;
+}
+
+.prose h1 { font-size: 1.2rem; }
+.prose h2 { font-size: 1.05rem; }
+.prose h3 { font-size: 0.95rem; }
+
+.prose p {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+  line-height: 1.6;
+}
+
+.prose ul, .prose ol {
+  padding-left: 1.25rem;
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+.prose li {
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
+}
+
+.prose blockquote {
+  border-left: 3px solid #0d9488;
+  padding-left: 0.75rem;
+  margin: 0.6rem 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+
 

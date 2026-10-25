@@ -11,6 +11,26 @@ const CONV_META_PATH = path.join(__dirname, '../data/conversations_meta.json');
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Resilient SQLite executor with busy timeout and exponential backoff retry.
+ */
+async function execSqlite(args, retries = 3) {
+  const cmdArgs = ['-cmd', '.timeout 5000', ...args];
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await execFileAsync('sqlite3', cmdArgs);
+    } catch (err) {
+      const isLocked = err.message && (err.message.includes('locked') || err.message.includes('busy'));
+      if (isLocked && attempt < retries) {
+        const delay = 100 * Math.pow(2, attempt - 1) + Math.random() * 50;
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 const AGY_BIN = process.env.AGY_BIN_PATH || '/usr/bin/agy';
 const AGY_HOME = process.env.AGY_HOME || '/home/bombi';
 const AGY_DB_PATH = path.join(AGY_HOME, '.gemini/antigravity-cli/conversation_summaries.db');
@@ -108,17 +128,21 @@ export async function executeAgyPrompt(message, options = {}) {
       args.push('--sandbox');
     }
 
-    if (conversationId && typeof conversationId === 'string' && conversationId.trim() !== '' && !conversationId.startsWith('draft-')) {
-      args.push('--conversation', conversationId.trim());
+    if (conversationId && typeof conversationId === 'string') {
+      const cleanConvId = conversationId.trim();
+      if (/^[a-zA-Z0-9_-]{8,64}$/.test(cleanConvId) && !cleanConvId.startsWith('draft-')) {
+        args.push('--conversation', cleanConvId);
+      }
     }
 
     const effectiveCwd = isGuest ? '/var/www/my-portfolio' : (cwd || AGY_HOME);
 
-    const env = {
-      ...process.env,
-      HOME: AGY_HOME,
-      PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin'
-    };
+    // Sanitize environment variables passed to child process (strip sensitive keys like JWT_SECRET)
+    const env = { ...process.env };
+    delete env.JWT_SECRET;
+    delete env.GOOGLE_CLIENT_SECRET;
+    env.HOME = AGY_HOME;
+    env.PATH = process.env.PATH || '/usr/local/bin:/usr/bin:/bin';
 
     let assignedConversationId = conversationId || null;
     let accumulatedReply = '';
@@ -126,29 +150,56 @@ export async function executeAgyPrompt(message, options = {}) {
     let timedOut = false;
     let aborted = false;
 
+    // Spawn child with detached: true on POSIX so entire process group can be killed
     const child = spawn(AGY_BIN, args, {
       cwd: effectiveCwd,
       env,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
     });
+
+    const killProcessGroup = (signal = 'SIGTERM') => {
+      if (!child || child.pid === undefined || child.exitCode !== null) return;
+      try {
+        if (process.platform !== 'win32') {
+          process.kill(-child.pid, signal);
+        } else {
+          child.kill(signal);
+        }
+      } catch (err) {
+        if (err.code !== 'ESRCH') {
+          console.warn(`[AGy Bridge] Failed to send ${signal} to PGID ${child.pid}:`, err.message);
+        }
+      }
+    };
+
+    let rl = null;
 
     if (options.signal) {
       if (options.signal.aborted) {
-        try { child.kill('SIGTERM'); } catch {}
+        killProcessGroup('SIGKILL');
         return reject(new Error('Turn aborted by client'));
       }
       options.signal.addEventListener('abort', () => {
         aborted = true;
         clearTimeout(timer);
         try {
-          if (child && !child.killed) {
-            child.kill('SIGTERM');
-            setTimeout(() => {
-              try { if (!child.killed) child.kill('SIGKILL'); } catch {}
-            }, 1000);
+          if (child && child.exitCode === null) {
+            killProcessGroup('SIGTERM');
+            const killTimer = setTimeout(() => {
+              try {
+                if (child && child.exitCode === null) {
+                  killProcessGroup('SIGKILL');
+                }
+              } catch {}
+            }, 1200);
+            if (killTimer.unref) killTimer.unref();
           }
         } catch (e) {
           console.warn('[AGy Bridge signal abort error]:', e.message);
+        }
+        if (rl) {
+          try { rl.close(); } catch {}
         }
         reject(new Error('Turn aborted by client'));
       }, { once: true });
@@ -166,11 +217,22 @@ export async function executeAgyPrompt(message, options = {}) {
 
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGTERM');
+      killProcessGroup('SIGTERM');
+      const forceTimer = setTimeout(() => {
+        try {
+          if (child && child.exitCode === null) {
+            killProcessGroup('SIGKILL');
+          }
+        } catch {}
+      }, 2000);
+      if (forceTimer.unref) forceTimer.unref();
+      if (rl) {
+        try { rl.close(); } catch {}
+      }
       reject(new Error(`Antigravity CLI turn timed out after ${timeoutMs / 1000}s`));
     }, timeoutMs);
 
-    const rl = readline.createInterface({
+    rl = readline.createInterface({
       input: child.stdout,
       terminal: false
     });
@@ -307,28 +369,82 @@ export async function listAgyConversations(limit = 100) {
       return [];
     }
 
-    const query = `SELECT conversation_id, title, preview, last_modified_time, step_count FROM conversation_summaries WHERE killed = 0 ORDER BY last_modified_time DESC LIMIT ${Math.max(1, Math.min(200, limit))};`;
-    const { stdout } = await execFileAsync('sqlite3', ['-json', AGY_DB_PATH, query]);
+    const safeLimit = Math.max(1, Math.min(200, limit));
+    const query = `PRAGMA query_only = ON; SELECT conversation_id, title, preview, last_modified_time, step_count FROM conversation_summaries WHERE killed = 0 ORDER BY last_modified_time DESC LIMIT ${safeLimit};`;
+    const dbUri = `file:${AGY_DB_PATH}?mode=ro`;
+    const { stdout } = await execSqlite(['-json', dbUri, query]);
 
     if (!stdout || !stdout.trim()) {
       return [];
     }
 
     const meta = getConversationsMeta();
+    let metaChanged = false;
     const items = JSON.parse(stdout);
-    return items.map((item) => {
-      const textPreview = item.preview || item.title || '';
+
+    const conversations = items.map((item) => {
+      const convId = item.conversation_id;
+      let title = item.title ? item.title.trim() : '';
+      let preview = item.preview ? item.preview.trim() : '';
+
+      // Check meta cache if SQLite title/preview was empty
+      if (!title && meta[convId]?.title) title = meta[convId].title;
+      if (!preview && meta[convId]?.snippet) preview = meta[convId].snippet;
+
+      // If still empty, attempt to read first user prompt from transcript.jsonl
+      if (!title || !preview) {
+        try {
+          const tPath = path.join(AGY_BRAIN_DIR, convId, '.system_generated/logs/transcript.jsonl');
+          if (fs.existsSync(tPath)) {
+            const sample = fs.readFileSync(tPath, 'utf-8');
+            const firstLines = sample.slice(0, 4000).split('\n');
+            for (const fl of firstLines) {
+              if (!fl.trim()) continue;
+              const parsed = JSON.parse(fl.trim());
+              let txt = '';
+              if (parsed.type === 'USER_INPUT' && parsed.content) {
+                txt = parsed.content;
+              } else if (parsed.content && typeof parsed.content === 'string' && parsed.content.includes('content=')) {
+                const match = parsed.content.match(/content=([^\n]+)/);
+                if (match) txt = match[1];
+              }
+              if (txt) {
+                txt = txt.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+                if (txt) {
+                  if (!title) title = txt.slice(0, 38);
+                  if (!preview) preview = txt.slice(0, 100);
+                  if (!meta[convId]) meta[convId] = {};
+                  meta[convId].title = title;
+                  meta[convId].snippet = preview;
+                  metaChanged = true;
+                  break;
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const displayTitle = title || preview || 'Conversación';
+      const displaySnippet = preview || title || displayTitle;
+
       return {
-        id: item.conversation_id,
-        title: item.title || item.preview || 'Conversación sin título',
-        preview: textPreview,
-        snippet: textPreview,
+        id: convId,
+        title: displayTitle,
+        preview: displaySnippet,
+        snippet: displaySnippet,
         lastModified: item.last_modified_time,
         updatedAt: item.last_modified_time,
         stepCount: Number(item.step_count) || 0,
-        archived: Boolean(meta[item.conversation_id]?.archived)
+        archived: Boolean(meta[convId]?.archived)
       };
     });
+
+    if (metaChanged) {
+      saveConversationsMeta(meta);
+    }
+
+    return conversations;
   } catch (error) {
     console.error('[AGy Bridge Error] listAgyConversations failed:', error.message);
     return [];
@@ -470,7 +586,7 @@ export async function deleteAgyConversation(conversationId) {
     if (!conversationId || !fs.existsSync(AGY_DB_PATH)) return false;
     const cleanId = conversationId.replace(/[^a-zA-Z0-9-]/g, '');
     const query = `UPDATE conversation_summaries SET killed = 1 WHERE conversation_id = '${cleanId}';`;
-    await execFileAsync('sqlite3', [AGY_DB_PATH, query]);
+    await execSqlite([AGY_DB_PATH, query]);
 
     const meta = getConversationsMeta();
     if (meta[cleanId]) {
@@ -497,7 +613,7 @@ export async function batchDeleteAgyConversations(ids = []) {
 
     const inClause = cleanIds.map((id) => `'${id}'`).join(',');
     const query = `UPDATE conversation_summaries SET killed = 1 WHERE conversation_id IN (${inClause});`;
-    await execFileAsync('sqlite3', [AGY_DB_PATH, query]);
+    await execSqlite([AGY_DB_PATH, query]);
 
     // Also purge from conversations_meta if present
     const meta = getConversationsMeta();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   User,
   LogOut,
@@ -133,6 +133,25 @@ export function App() {
   const [streamingTools, setStreamingTools] = useState({}); // { [convKey]: ToolItem[] }
   const streamingToolsRef = useRef({});
   const abortControllersRef = useRef({});
+  const cancelTokensRef = useRef({});
+  const generatingMapRef = useRef({});
+  const activeTranscriptReqRef = useRef({});
+
+  useEffect(() => {
+    generatingMapRef.current = generatingMap;
+  }, [generatingMap]);
+
+  useEffect(() => {
+    return () => {
+      Object.keys(abortControllersRef.current).forEach((key) => {
+        try { abortControllersRef.current[key](); } catch {}
+      });
+      abortControllersRef.current = {};
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        try { window.speechSynthesis.cancel(); } catch {}
+      }
+    };
+  }, []);
 
   const handleToggleVerboseMode = () => {
     setVerboseMode((prev) => {
@@ -260,9 +279,13 @@ export function App() {
     // If switching away from an empty unsent draft, discard it from the list
     if (activeConversationId && activeConversationId.startsWith('draft-') && activeConversationId !== id) {
       const msgs = conversationsMessages[activeConversationId] || [];
-      if (msgs.length === 0 && !generatingMap[activeConversationId]) {
+      if (msgs.length === 0 && !generatingMapRef.current[activeConversationId]) {
         setConversations((prev) => prev.filter((c) => c.id !== activeConversationId));
       }
+    }
+
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch {}
     }
 
     setActiveConversationId(id);
@@ -270,13 +293,17 @@ export function App() {
     setActiveTab('chat');
 
     // Only fetch if not currently streaming to avoid overwriting live background generation
-    if (!generatingMap[id] && !id.startsWith('draft-')) {
+    if (!generatingMapRef.current[id] && !id.startsWith('draft-')) {
+      const reqSeq = Date.now();
+      activeTranscriptReqRef.current[id] = reqSeq;
       try {
         const detail = await fetchConversationDetail(id);
-        setConversationsMessages((prev) => ({
-          ...prev,
-          [id]: detail.messages || []
-        }));
+        if (activeTranscriptReqRef.current[id] === reqSeq) {
+          setConversationsMessages((prev) => ({
+            ...prev,
+            [id]: detail.messages || []
+          }));
+        }
       } catch (err) {
         console.error('Failed to load transcript:', err);
       }
@@ -290,13 +317,13 @@ export function App() {
       const data = await fetchConversations();
       const list = data.conversations || [];
       
-      // Preserve any active draft currently in progress
+      // Preserve any active draft or currently generating session in progress
       setConversations((prev) => {
-        const activeDraft = prev.find((c) => c.isDraft || (c.id && c.id.startsWith('draft-')));
-        if (activeDraft && !list.some((c) => c.id === activeDraft.id)) {
-          return [activeDraft, ...list];
-        }
-        return list;
+        const activeItems = prev.filter(
+          (c) => c.isDraft || (c.id && c.id.startsWith('draft-')) || Boolean(generatingMapRef.current[c.id])
+        );
+        const missingFromList = activeItems.filter((act) => !list.some((c) => c.id === act.id));
+        return [...missingFromList, ...list];
       });
 
       const savedConv = localStorage.getItem('ask_rodrigo_active_conv');
@@ -317,32 +344,11 @@ export function App() {
       // 1. Refresh conversations list from server without re-selecting
       await loadConversations(false);
 
-      // 2. If an active conversation exists, sync its latest messages from the transcript
+      // 2. If an active conversation exists and is not currently streaming, sync latest messages
       if (activeConversationId && !activeConversationId.startsWith('draft-')) {
-        const detail = await fetchConversationDetail(activeConversationId);
-        if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
-          const lastMsg = detail.messages[detail.messages.length - 1];
-          // If the server finished and responded with an assistant reply, clear any leftover generating state
-          if (lastMsg?.role === 'assistant' && generatingMap[activeConversationId]) {
-            setGeneratingMap((prev) => {
-              const next = { ...prev };
-              delete next[activeConversationId];
-              return next;
-            });
-            setStreamingStatuses((prev) => {
-              const next = { ...prev };
-              delete next[activeConversationId];
-              return next;
-            });
-            setStreamingReplies((prev) => {
-              const next = { ...prev };
-              delete next[activeConversationId];
-              return next;
-            });
-          }
-
-          // Update messages if not actively generating or if turn completed
-          if (!generatingMap[activeConversationId] || lastMsg?.role === 'assistant') {
+        if (!generatingMapRef.current[activeConversationId]) {
+          const detail = await fetchConversationDetail(activeConversationId);
+          if (detail && Array.isArray(detail.messages)) {
             setConversationsMessages((prev) => ({
               ...prev,
               [activeConversationId]: detail.messages
@@ -679,9 +685,12 @@ export function App() {
     };
 
     if (startConvId && startConvId.startsWith('draft-')) {
-      const cleanSnippet = text.trim().replace(/\s+/g, ' ');
-      const autoTitle = cleanSnippet.length > 36 ? cleanSnippet.slice(0, 36) + '...' : cleanSnippet;
-      const autoSnippet = cleanSnippet.length > 80 ? cleanSnippet.slice(0, 80) + '...' : cleanSnippet;
+      const cleanPrompt = text
+        .replace(/(?:🖼️|📎)\s*\[(?:Imagen|Archivo) adjunto en el servidor\]:[^\n]*\n(?:-[^\n]*\n)*(?:- Instrucción visual:[^\n]*\n)*/gi, '')
+        .trim()
+        .replace(/\s+/g, ' ');
+      const autoTitle = cleanPrompt.length > 36 ? cleanPrompt.slice(0, 36) + '...' : (cleanPrompt || 'Nuevo chat');
+      const autoSnippet = cleanPrompt.length > 80 ? cleanPrompt.slice(0, 80) + '...' : (cleanPrompt || 'Sin vista previa');
       setConversations((prev) =>
         prev.map((c) =>
           c.id === startConvId
@@ -696,6 +705,9 @@ export function App() {
       currentConvId && currentConvId.startsWith('draft-') ? null : currentConvId,
       {
         onInit: (data) => {
+          if (data.cancelToken) {
+            cancelTokensRef.current[data.conversationId || trackedKey] = data.cancelToken;
+          }
           if (data.conversationId && currentUser?.role === 'admin') {
             const assignedId = data.conversationId;
             currentConvId = assignedId;
@@ -703,14 +715,34 @@ export function App() {
             // If trackedKey was a draft, migrate tracking to assignedId
             if (trackedKey !== assignedId) {
               const oldKey = trackedKey;
+              if (data.cancelToken) {
+                cancelTokensRef.current[assignedId] = data.cancelToken;
+                delete cancelTokensRef.current[oldKey];
+              }
               if (abortControllersRef.current[oldKey]) {
                 abortControllersRef.current[assignedId] = abortControllersRef.current[oldKey];
                 delete abortControllersRef.current[oldKey];
               }
 
-              setConversations((prev) =>
-                prev.map((c) => (c.id === oldKey ? { ...c, id: assignedId, isDraft: false } : c))
-              );
+              setConversations((prev) => {
+                const exists = prev.some((c) => c.id === oldKey || c.id === assignedId);
+                if (exists) {
+                  return prev.map((c) => (c.id === oldKey ? { ...c, id: assignedId, isDraft: false } : c));
+                }
+                return [
+                  {
+                    id: assignedId,
+                    title: text.slice(0, 36) || 'New chat',
+                    snippet: text.slice(0, 80) || 'Running turn...',
+                    preview: text.slice(0, 80) || 'Running turn...',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    stepCount: 0,
+                    isDraft: false
+                  },
+                  ...prev
+                ];
+              });
 
               setGeneratingMap((prev) => {
                 const next = { ...prev, [assignedId]: true };
@@ -750,8 +782,6 @@ export function App() {
                 }
                 return curActive;
               });
-
-              loadConversations(false);
             }
           }
         },
@@ -897,13 +927,15 @@ export function App() {
     }
 
     // 2. Call backend stop endpoint to kill process
-    if (currentUser?.role === 'admin' && !targetId.startsWith('draft-') && targetId !== 'new') {
+    const cancelToken = cancelTokensRef.current[targetId] || null;
+    if (!targetId.startsWith('draft-') && targetId !== 'new') {
       try {
-        await stopChatMessage(targetId);
+        await stopChatMessage(targetId, cancelToken);
       } catch (e) {
         console.warn('Error sending stop to backend:', e);
       }
     }
+    delete cancelTokensRef.current[targetId];
 
     // 3. Clear generating flags
     const partialText = streamingReplies[targetId] || '';
@@ -932,11 +964,12 @@ export function App() {
     delete streamingToolsRef.current[targetId];
 
     // 4. Append partial response if any, marked as stopped
-    if (partialText.trim()) {
+    if (partialText.trim() || toolsForThisTurn.length > 0) {
       const stoppedNotice = t.chat?.responseStopped || (language === 'es' ? '(Respuesta detenida por el usuario)' : '(Response stopped by user)');
+      const bodyContent = partialText.trim() ? `${partialText.trim()}\n\n*${stoppedNotice}*` : `*${stoppedNotice}*`;
       const assistantMsg = {
         role: 'assistant',
-        content: `${partialText.trim()}\n\n*${stoppedNotice}*`,
+        content: bodyContent,
         time: new Date().toISOString(),
         tools: toolsForThisTurn.length > 0 ? toolsForThisTurn : undefined
       };

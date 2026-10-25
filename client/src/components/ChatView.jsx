@@ -186,9 +186,21 @@ export function ChatView({
   };
 
   useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        try { window.speechSynthesis.cancel(); } catch {}
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isModelDropdownOpen) return;
     updateDropdownPos();
-    const handleScrollOrResize = () => updateDropdownPos();
+    let rafId = null;
+    const handleScrollOrResize = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => updateDropdownPos());
+    };
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') setIsModelDropdownOpen(false);
     };
@@ -196,6 +208,7 @@ export function ChatView({
     window.addEventListener('scroll', handleScrollOrResize, true);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener('resize', handleScrollOrResize);
       window.removeEventListener('scroll', handleScrollOrResize, true);
       window.removeEventListener('keydown', handleKeyDown);
@@ -892,18 +905,21 @@ export function ChatView({
                 <div
                   className={`relative group rounded-[16px] px-3.5 sm:px-4 py-2.5 sm:py-3 max-w-[92%] sm:max-w-[85%] min-w-0 text-xs sm:text-sm leading-relaxed break-words [overflow-wrap:anywhere] ${
                     isUser
-                      ? 'bg-accent text-white rounded-tr-none shadow-v2-sm'
+                      ? 'bg-teal-700/95 hover:bg-teal-700 text-white rounded-tr-none shadow-v2-sm border border-teal-600/40'
                       : 'bg-panel border border-edge text-ink rounded-tl-none shadow-v2-sm'
                   }`}
                 >
                   {isUser ? (
                     <div className="space-y-1.5">
                       {renderUserMessage(msg.content)}
-                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/15 text-[11px] text-white/70 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/15 text-[11px] text-white/70 opacity-90 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button
                           type="button"
                           onClick={() => {
-                            setInputText(msg.content);
+                            const cleanPrompt = msg.content
+                              .replace(/(?:🖼️|📎)\s*\[(?:Imagen|Archivo) adjunto en el servidor\]:[^\n]*\n(?:-[^\n]*\n)*(?:- Instrucción visual:[^\n]*\n)*/gi, '')
+                              .trim();
+                            setInputText(cleanPrompt || msg.content);
                             if (inputRef.current) {
                               inputRef.current.focus();
                               setTimeout(() => {
@@ -913,10 +929,10 @@ export function ChatView({
                               }, 50);
                             }
                           }}
-                          className="inline-flex items-center gap-1 hover:text-white transition-colors cursor-pointer text-[10px]"
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md hover:text-white hover:bg-white/10 transition-colors cursor-pointer text-xs select-none active:scale-95 touch-manipulation"
                           title={ct.editPrompt || (language === 'es' ? 'Editar y reutilizar este mensaje' : 'Edit and reuse this prompt')}
                         >
-                          <Pencil className="w-3 h-3" />
+                          <Pencil className="w-3.5 h-3.5" />
                           <span>{ct.editPromptShort || (language === 'es' ? 'Editar' : 'Edit')}</span>
                         </button>
                         {msg.time && (
@@ -1055,7 +1071,7 @@ export function ChatView({
               <button
                 type="button"
                 onClick={onStopGeneration}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs transition-colors cursor-pointer shrink-0 shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs transition-colors cursor-pointer shrink-0 shadow-xs touch-manipulation active:scale-95"
                 title={ct.stopTitle || (language === 'es' ? 'Detener respuesta' : 'Stop generating response')}
               >
                 <Square className="w-3 h-3 fill-current" />
@@ -1069,7 +1085,7 @@ export function ChatView({
       </div>
 
       {/* Input Box Footer (Modern Card Style with dynamic auto-height & iPhone-safe padding) */}
-      <div className="p-2 sm:p-3 border-t border-edge bg-paper/95 backdrop-blur-md shrink-0 md:pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+      <div className="p-2 sm:p-3 md:pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] pb-2 border-t border-edge bg-paper/95 backdrop-blur-md shrink-0">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative flex flex-col gap-1.5 sm:gap-2">
           {/* Attached Files & Upload Status Badges */}
           {(attachedFiles.length > 0 || isUploading || uploadError) && (
@@ -1241,7 +1257,7 @@ export function ChatView({
                     type="button"
                     onClick={onStopGeneration}
                     title={ct.stopTitle || (language === 'es' ? 'Detener respuesta en curso' : 'Stop generating response')}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[12px] font-medium text-xs bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 transition-all shrink-0 cursor-pointer shadow-v2-sm active:scale-95"
+                    className="flex items-center justify-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-[12px] font-medium text-xs bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 transition-all shrink-0 cursor-pointer shadow-v2-sm active:scale-95"
                   >
                     <Square className="w-3.5 h-3.5 fill-current" />
                     <span>{ct.stopBtn || (language === 'es' ? 'Detener' : 'Stop')}</span>
@@ -1258,7 +1274,7 @@ export function ChatView({
                         ? (ct.placeholderType || (language === 'es' ? 'Escribe un mensaje para enviar' : 'Type a message to send'))
                         : (ct.sendTitle || (language === 'es' ? 'Enviar mensaje (Enter)' : 'Send message (Enter)'))
                   }
-                  className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[12px] font-medium text-xs transition-all shrink-0 cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-[12px] font-medium text-xs transition-all shrink-0 cursor-pointer ${
                     isGenerating
                       ? 'bg-accent/20 border border-accent/40 text-accent cursor-wait'
                       : (inputText.trim() || attachedFiles.length > 0) && !isUploading

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { rodrigoKnowledge, getSanitizedPublicKnowledge } from '../data/rodrigoKnowledge.js';
 import { generateChatResponse } from '../services/aiService.js';
 import {
@@ -144,14 +145,20 @@ export async function chatStreamHandler(req, res) {
   res.write(': connected\n\n');
 
   const sendEvent = (event, data) => {
-    if (!res.writableEnded) {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (!res.writableEnded && !res.destroyed) {
+      try {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      } catch (err) {
+        // Socket disconnected
+      }
     }
   };
 
   const abortController = new AbortController();
-  const clientKey = conversationId || `exec-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  let activeConvId = conversationId || null;
+  const execId = `exec-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const cancelToken = crypto.randomBytes(16).toString('hex');
+  const clientKey = conversationId && !conversationId.startsWith('draft-') ? conversationId : execId;
+  let activeConvId = userRole === 'admin' ? (conversationId || null) : `guest-${Date.now()}`;
 
   const execObj = {
     abort: () => {
@@ -159,33 +166,46 @@ export async function chatStreamHandler(req, res) {
         abortController.abort();
       } catch {}
     },
-    abortController
+    abortController,
+    userRole,
+    userId: req.user?.email || null,
+    cancelToken
   };
 
-  activeExecutions.set(clientKey, execObj);
-
-  // Heartbeat every 10s to keep connection alive through Nginx & proxies
-  const heartbeat = setInterval(() => {
-    if (!res.writableEnded) {
-      res.write(': keepalive\n\n');
-    }
-  }, 10000);
-
-  req.on('close', () => {
-    clearInterval(heartbeat);
-    if (!res.writableEnded) {
-      try {
-        abortController.abort();
-      } catch {}
-    }
-    activeExecutions.delete(clientKey);
-    if (activeConvId) activeExecutions.delete(activeConvId);
-  });
+  let heartbeat = null;
 
   try {
+    activeExecutions.set(clientKey, execObj);
+    if (activeConvId) activeExecutions.set(activeConvId, execObj);
+
+    // Heartbeat every 10s to keep connection alive through Nginx & proxies
+    heartbeat = setInterval(() => {
+      if (!res.writableEnded && !res.destroyed) {
+        try {
+          res.write(': keepalive\n\n');
+        } catch {
+          clearInterval(heartbeat);
+        }
+      }
+    }, 10000);
+
+    req.on('close', () => {
+      if (heartbeat) clearInterval(heartbeat);
+      if (!res.writableEnded) {
+        try {
+          abortController.abort();
+        } catch {}
+      }
+      activeExecutions.delete(clientKey);
+      if (activeConvId) activeExecutions.delete(activeConvId);
+    });
+
     // 1. Guest Mode SSE: Stream from AGy-cli Bridge in strict read-only sandbox mode (English default)
     if (userRole !== 'admin') {
-      sendEvent('init', { conversationId: conversationId || 'guest-session' });
+      sendEvent('init', {
+        conversationId: activeConvId || conversationId || 'guest-session',
+        cancelToken
+      });
       sendEvent('status', { message: 'Connecting to Ask Rodrigo AI (Guest Mode)...' });
 
       try {
@@ -199,7 +219,7 @@ export async function chatStreamHandler(req, res) {
           onInit: (assignedId) => {
             activeConvId = assignedId;
             activeExecutions.set(assignedId, execObj);
-            sendEvent('init', { conversationId: assignedId });
+            sendEvent('init', { conversationId: assignedId, cancelToken });
           },
           onDelta: (textChunk) => {
             sendEvent('delta', { text: textChunk });
@@ -266,7 +286,7 @@ export async function chatStreamHandler(req, res) {
       onInit: (assignedId) => {
         activeConvId = assignedId;
         activeExecutions.set(assignedId, execObj);
-        sendEvent('init', { conversationId: assignedId });
+        sendEvent('init', { conversationId: assignedId, cancelToken });
       },
       onDelta: (textChunk) => {
         sendEvent('delta', { text: textChunk });
@@ -296,7 +316,7 @@ export async function chatStreamHandler(req, res) {
     }
     res.end();
   } finally {
-    clearInterval(heartbeat);
+    if (heartbeat) clearInterval(heartbeat);
     activeExecutions.delete(clientKey);
     if (activeConvId) activeExecutions.delete(activeConvId);
   }
@@ -308,13 +328,28 @@ export async function chatStreamHandler(req, res) {
  */
 export async function chatStopHandler(req, res) {
   try {
-    const { conversationId } = req.body || {};
+    const { conversationId, cancelToken } = req.body || {};
     if (!conversationId) {
       return res.status(400).json({ error: 'conversationId es requerido.' });
     }
 
     const exec = activeExecutions.get(conversationId);
     if (exec) {
+      const callerRole = req.user?.role || 'guest';
+      const callerEmail = req.user?.email || null;
+
+      // Security check:
+      // 1. Admins can abort any session
+      // 2. Authenticated users can abort their own sessions
+      // 3. Guests / unauthenticated callers MUST provide the matching per-session cancelToken
+      const isAdmin = callerRole === 'admin';
+      const isOwner = Boolean(callerEmail && exec.userId === callerEmail);
+      const hasValidToken = Boolean(cancelToken && exec.cancelToken === cancelToken);
+
+      if (!isAdmin && !isOwner && !hasValidToken) {
+        return res.status(403).json({ error: 'No autorizado para detener esta ejecución.' });
+      }
+
       exec.abort();
       activeExecutions.delete(conversationId);
       return res.json({ ok: true, stopped: true, message: 'Turno cancelado exitosamente.' });

@@ -94,6 +94,11 @@ export async function loginGoogle(req, res) {
         const idTokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
         if (idTokenRes.ok) {
           const idData = await idTokenRes.json();
+          const expectedClientId = process.env.GOOGLE_CLIENT_ID;
+          if (expectedClientId && idData.aud !== expectedClientId) {
+            console.warn('[loginGoogle] Audience mismatch:', idData.aud, '!=', expectedClientId);
+            return res.status(401).json({ error: 'Token de Google no emitido para esta aplicación.' });
+          }
           email = (idData.email || '').toLowerCase().trim();
           emailVerified = idData.email_verified === 'true' || idData.email_verified === true;
           name = idData.name || null;
@@ -107,6 +112,20 @@ export async function loginGoogle(req, res) {
     // Strategy 2: If ID token verification did not succeed or accessToken was provided, verify with userinfo endpoint
     if (!email) {
       try {
+        const expectedClientId = process.env.GOOGLE_CLIENT_ID;
+        // Verify audience/issued_to if expectedClientId is configured
+        if (expectedClientId) {
+          const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(tokenToVerify)}`);
+          if (tokenInfoRes.ok) {
+            const tokenData = await tokenInfoRes.json();
+            const tokenAud = tokenData.issued_to || tokenData.audience;
+            if (tokenAud && tokenAud !== expectedClientId) {
+              console.warn('[loginGoogle] Access token audience mismatch:', tokenAud, '!=', expectedClientId);
+              return res.status(401).json({ error: 'Token de Google no emitido para esta aplicación.' });
+            }
+          }
+        }
+
         const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
           headers: { Authorization: `Bearer ${tokenToVerify}` }
         });

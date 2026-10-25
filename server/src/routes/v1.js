@@ -1,13 +1,16 @@
 import express from 'express';
 import { executeAgyPrompt } from '../services/agyBridgeService.js';
+import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
+
+router.use(authenticateToken);
 
 /**
  * GET /v1/models
  * Returns available models for Continue or any OpenAI-compatible client
  */
-router.get('/models', (req, res) => {
+router.get('/models', requireAdmin, (req, res) => {
   return res.json({
     object: 'list',
     data: [
@@ -37,7 +40,7 @@ router.get('/models', (req, res) => {
  * POST /v1/chat/completions
  * OpenAI-compatible chat completions proxying directly to Antigravity CLI (agy)
  */
-router.post('/chat/completions', async (req, res) => {
+router.post('/chat/completions', requireAdmin, async (req, res) => {
   const { messages = [], stream = false, model = 'antigravity-gemini' } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {

@@ -1,17 +1,48 @@
+import fs from 'fs';
 import os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+let cachedMetrics = null;
+let lastMetricsFetchTime = 0;
+const METRICS_CACHE_TTL = 5000; // 5 seconds cache to avoid subprocess thrashing
+
+function getAccurateMemory() {
+  const totalMem = os.totalmem();
+  let availableMem = os.freemem();
+
+  try {
+    if (fs.existsSync('/proc/meminfo')) {
+      const meminfo = fs.readFileSync('/proc/meminfo', 'utf-8');
+      const match = meminfo.match(/MemAvailable:\s+(\d+)\s+kB/i);
+      if (match && match[1]) {
+        availableMem = parseInt(match[1], 10) * 1024;
+      }
+    }
+  } catch {}
+
+  const usedMem = Math.max(0, totalMem - availableMem);
+  return {
+    totalMb: Math.round(totalMem / 1024 / 1024),
+    usedMb: Math.round(usedMem / 1024 / 1024),
+    freeMb: Math.round(availableMem / 1024 / 1024),
+    usedPercent: Math.min(100, Math.max(0, Math.round((usedMem / totalMem) * 100)))
+  };
+}
+
 /**
  * Gathers comprehensive VPS performance and services status.
  */
 export async function getSystemMetrics() {
+  const now = Date.now();
+  if (cachedMetrics && (now - lastMetricsFetchTime < METRICS_CACHE_TTL)) {
+    return cachedMetrics;
+  }
+
   const cpus = os.cpus();
-  const totalMem = os.totalmem();
-  const freeMem = os.freemem();
-  const usedMem = totalMem - freeMem;
+  const memory = getAccurateMemory();
   const loadavg = os.loadavg();
 
   // 1. Check systemd services
@@ -80,7 +111,7 @@ export async function getSystemMetrics() {
     console.warn('[Metrics] Disk check warning:', errDisk.message);
   }
 
-  return {
+  const result = {
     timestamp: new Date().toISOString(),
     os: {
       platform: os.platform(),
@@ -97,14 +128,13 @@ export async function getSystemMetrics() {
         '15m': loadavg[2].toFixed(2)
       }
     },
-    memory: {
-      totalMb: Math.round(totalMem / 1024 / 1024),
-      usedMb: Math.round(usedMem / 1024 / 1024),
-      freeMb: Math.round(freeMem / 1024 / 1024),
-      usedPercent: Math.round((usedMem / totalMem) * 100)
-    },
+    memory,
     disk,
     services,
     pm2Processes
   };
+
+  cachedMetrics = result;
+  lastMetricsFetchTime = Date.now();
+  return result;
 }

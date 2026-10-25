@@ -71,7 +71,11 @@ export const SessionDrawer = React.memo(function SessionDrawer({
     if (activeFilter === 'archived') {
       list = list.filter((c) => Boolean(c.archived));
     } else if (activeFilter === 'questions') {
-      list = list.filter((c) => !c.archived && ((c.title || '').includes('?') || (c.snippet || '').includes('?') || (c.preview || '').includes('?')));
+      list = list.filter((c) => !c.archived && (
+        (c.title || '').includes('?') || (c.title || '').includes('¿') ||
+        (c.snippet || '').includes('?') || (c.snippet || '').includes('¿') ||
+        (c.preview || '').includes('?') || (c.preview || '').includes('¿')
+      ));
     } else if (activeFilter === 'active') {
       list = list.filter((c) => !c.archived);
     } else {
@@ -547,7 +551,7 @@ export const SessionDrawer = React.memo(function SessionDrawer({
 
                         {/* Action buttons (Archive & Delete) visible on hover when not in select mode */}
                         {!isSelectMode && (
-                          <div className="absolute right-2 bottom-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute right-2 bottom-2 flex items-center gap-1 opacity-70 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             {/* Single Archive/Unarchive button */}
                             <button
                               onClick={(e) => handleSingleArchive(e, conv)}
