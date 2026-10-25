@@ -133,6 +133,18 @@ export function getRawUploadHandler(req, res) {
     if (!rawName) return res.status(400).send('Filename requerido');
     const safeName = path.basename(rawName);
 
+    // Defense-in-depth security headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+
+    const ext = path.extname(safeName).toLowerCase();
+    const safeInlineImages = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.ico'];
+
+    // Only allow safe raster images to render inline; force attachment download for everything else to prevent Stored XSS
+    if (!safeInlineImages.includes(ext)) {
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    }
+
     // 1. Check active UPLOAD_DIR
     const activePath = path.join(UPLOAD_DIR, safeName);
     if (fs.existsSync(activePath)) {

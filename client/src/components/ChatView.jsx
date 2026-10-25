@@ -236,6 +236,7 @@ export function ChatView({
       setAttachedFiles([]);
       prevConvIdRef.current = conversationId;
       isNearBottomRef.current = true;
+      setShowScrollBottom(false);
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
         adjustTextareaHeight();
@@ -247,16 +248,24 @@ export function ChatView({
   const ct = t.chat;
   const tw = t.workspaces;
 
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+
   const handleScroll = () => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const threshold = 120;
-    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+    const isNear = el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+    isNearBottomRef.current = isNear;
+    setShowScrollBottom(!isNear);
   };
 
   const scrollToBottom = (behavior = 'auto') => {
     if (behavior === 'auto' && !isNearBottomRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
+    if (behavior !== 'auto') {
+      isNearBottomRef.current = true;
+      setShowScrollBottom(false);
+    }
   };
 
   useEffect(() => {
@@ -1081,6 +1090,19 @@ export function ChatView({
           </div>
         )}
 
+        {showScrollBottom && (
+          <div className="sticky bottom-2 flex justify-center pointer-events-none z-10 animate-fadeIn">
+            <button
+              type="button"
+              onClick={() => scrollToBottom('smooth')}
+              className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-panel/95 backdrop-blur-md border border-edge/80 text-ink hover:text-accent hover:border-accent/40 shadow-v2-md text-xs font-medium cursor-pointer transition-all active:scale-95 touch-manipulation"
+            >
+              <ChevronDown className="w-3.5 h-3.5 text-accent animate-bounce" />
+              <span>{language === 'es' ? 'Ir al final' : 'Scroll down'}</span>
+            </button>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -1246,54 +1268,41 @@ export function ChatView({
                 )}
               </div>
 
-              {/* Right Actions: Desktop Keyboard Hint, Stop Button & Send Button */}
+              {/* Right Actions: Desktop Keyboard Hint & Morphing Action Button (Send / Stop) */}
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="hidden sm:inline-block text-[10.5px] font-mono text-muted/60 select-none">
                   Shift + ↵ {ct.lineBreakHint || (language === 'es' ? 'salto de línea' : 'line break')}
                 </span>
 
-                {isGenerating && onStopGeneration && (
+                {isGenerating ? (
                   <button
                     type="button"
                     onClick={onStopGeneration}
                     title={ct.stopTitle || (language === 'es' ? 'Detener respuesta en curso' : 'Stop generating response')}
-                    className="flex items-center justify-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-[12px] font-medium text-xs bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 transition-all shrink-0 cursor-pointer shadow-v2-sm active:scale-95"
+                    className="flex items-center justify-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-[12px] font-medium text-xs bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/50 text-rose-300 hover:text-rose-100 transition-all shrink-0 cursor-pointer shadow-v2-sm active:scale-95 touch-manipulation"
                   >
                     <Square className="w-3.5 h-3.5 fill-current" />
                     <span>{ct.stopBtn || (language === 'es' ? 'Detener' : 'Stop')}</span>
                   </button>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={(!inputText.trim() && attachedFiles.length === 0) || isUploading || isGenerating}
-                  title={
-                    isGenerating
-                      ? (ct.waitingResponse || (language === 'es' ? 'Rodrigo está procesando una respuesta...' : 'Rodrigo is processing a response...'))
-                      : (!inputText.trim() && attachedFiles.length === 0)
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={(!inputText.trim() && attachedFiles.length === 0) || isUploading}
+                    title={
+                      (!inputText.trim() && attachedFiles.length === 0)
                         ? (ct.placeholderType || (language === 'es' ? 'Escribe un mensaje para enviar' : 'Type a message to send'))
                         : (ct.sendTitle || (language === 'es' ? 'Enviar mensaje (Enter)' : 'Send message (Enter)'))
-                  }
-                  className={`flex items-center justify-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-[12px] font-medium text-xs transition-all shrink-0 cursor-pointer ${
-                    isGenerating
-                      ? 'bg-accent/20 border border-accent/40 text-accent cursor-wait'
-                      : (inputText.trim() || attachedFiles.length > 0) && !isUploading
-                        ? 'bg-accent hover:bg-accent/90 text-white shadow-v2-sm active:scale-95'
+                    }
+                    className={`flex items-center justify-center gap-1.5 min-h-[38px] px-3.5 py-1.5 rounded-[12px] font-medium text-xs transition-all shrink-0 cursor-pointer ${
+                      (inputText.trim() || attachedFiles.length > 0) && !isUploading
+                        ? 'bg-accent hover:bg-accent/90 text-white shadow-v2-sm active:scale-95 touch-manipulation'
                         : 'bg-sunken text-muted/40 cursor-not-allowed border border-edge/40'
-                  }`}
-                >
-                  {isGenerating ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span className="hidden sm:inline">{ct.generatingBtn || (language === 'es' ? 'Generando' : 'Generating')}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">{ct.send || (language === 'es' ? 'Enviar' : 'Send')}</span>
-                    </>
-                  )}
-                </button>
+                    }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{ct.send || (language === 'es' ? 'Enviar' : 'Send')}</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

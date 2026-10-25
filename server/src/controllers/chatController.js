@@ -363,6 +363,24 @@ export async function chatStopHandler(req, res) {
 }
 
 /**
+ * Aborts all active running child executions upon graceful server shutdown.
+ */
+export function abortAllActiveExecutions() {
+  const count = activeExecutions.size;
+  if (count > 0) {
+    console.log(`[Ask-Rodrigo] Aborting all ${count} active executions for graceful shutdown...`);
+    for (const [id, exec] of activeExecutions.entries()) {
+      try {
+        if (typeof exec.abort === 'function') exec.abort();
+      } catch (e) {
+        console.warn(`[Ask-Rodrigo] Error aborting execution ${id}:`, e.message);
+      }
+    }
+    activeExecutions.clear();
+  }
+}
+
+/**
  * Lists past Antigravity conversations from SQLite database (Admin only).
  */
 export async function conversationsHandler(req, res) {

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { spawn, execFile } from 'child_process';
 import readline from 'readline';
 import fs from 'fs';
@@ -76,16 +77,12 @@ export async function executeAgyPrompt(message, options = {}) {
     }
 
     if (finalPrompt && finalPrompt.length > 50000) {
-      // Auto-offload huge prompt texts to /home/bombi/uploads to prevent CLI argument overflow (spawn E2BIG)
+      // Auto-offload huge prompt texts to private temp dir to prevent CLI argument overflow (spawn E2BIG)
       try {
-        const uploadDir = '/home/bombi/uploads';
-        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-        const autoFile = path.join(uploadDir, `prompt_${Date.now()}.txt`);
-        fs.writeFileSync(autoFile, finalPrompt, 'utf8');
-        try {
-          fs.chmodSync(autoFile, 0o664);
-          fs.chownSync(autoFile, 1001, 1001);
-        } catch {}
+        const tempPromptDir = path.join(AGY_HOME, '.gemini/antigravity-cli/prompts_temp');
+        if (!fs.existsSync(tempPromptDir)) fs.mkdirSync(tempPromptDir, { recursive: true, mode: 0o700 });
+        const autoFile = path.join(tempPromptDir, `prompt_${crypto.randomUUID()}.txt`);
+        fs.writeFileSync(autoFile, finalPrompt, { encoding: 'utf8', mode: 0o600 });
         finalPrompt = `📎 [Texto extenso guardado automáticamente en el servidor]: ${autoFile}\nPor favor lee el contenido completo del archivo usando tus herramientas de lectura para responder y ejecutar la solicitud del usuario.`;
       } catch (errOffload) {
         console.warn('[AGy Bridge] Failed to offload huge prompt:', errOffload.message);

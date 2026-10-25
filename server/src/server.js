@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/api.js';
 import v1Routes from './routes/v1.js';
+import { abortAllActiveExecutions } from './controllers/chatController.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -145,16 +146,21 @@ server.keepAliveTimeout = 65000;
 
 // Graceful shutdown handlers to prevent abrupt SSE drop on PM2 reloads
 const handleGracefulShutdown = (signal) => {
-  console.log(`[Ask-Rodrigo] ${signal} signal received: closing HTTP server gracefully...`);
+  console.log(`[Ask-Rodrigo] ${signal} signal received: terminating active child turns and closing HTTP server...`);
+  try {
+    abortAllActiveExecutions();
+  } catch (errAbort) {
+    console.warn('[Ask-Rodrigo] Error aborting active executions on shutdown:', errAbort.message);
+  }
   server.close(() => {
     console.log('[Ask-Rodrigo] HTTP server closed cleanly.');
     process.exit(0);
   });
-  // Force exit after 8 seconds if lingering connections don't close
+  // Force exit after 6 seconds if lingering connections don't close
   setTimeout(() => {
     console.warn('[Ask-Rodrigo] Forcing process exit after shutdown timeout.');
     process.exit(0);
-  }, 8000).unref();
+  }, 6000).unref();
 };
 
 process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
