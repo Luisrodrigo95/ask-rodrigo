@@ -276,6 +276,32 @@ export async function deleteConversation(conversationId) {
 }
 
 /**
+ * Batch deletes multiple Antigravity conversations
+ */
+export async function batchDeleteConversations(ids) {
+  const response = await fetch(`${API_BASE}/conversations/batch-delete`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ ids })
+  });
+  if (!response.ok) throw new Error('Failed to batch delete conversations');
+  return await response.json();
+}
+
+/**
+ * Batch archives / unarchives Antigravity conversations
+ */
+export async function batchArchiveConversations(ids, archived = true) {
+  const response = await fetch(`${API_BASE}/conversations/batch-archive`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ ids, archived })
+  });
+  if (!response.ok) throw new Error('Failed to batch archive conversations');
+  return await response.json();
+}
+
+/**
  * Fetches real-time server metrics (Admin Only)
  */
 export async function fetchMetrics() {

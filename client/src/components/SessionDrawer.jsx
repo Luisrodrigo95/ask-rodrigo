@@ -8,7 +8,13 @@ import {
   Sparkles,
   Shield,
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  CheckSquare,
+  Square,
+  Archive,
+  ArchiveRestore,
+  ListChecks,
+  Check
 } from 'lucide-react';
 
 function isSameDay(d1, d2) {
@@ -31,6 +37,8 @@ export function SessionDrawer({
   onSelectConversation,
   onNewChat,
   onDeleteConversation,
+  onBatchDeleteConversations,
+  onBatchArchiveConversations,
   loading,
   currentUser,
   onOpenLogin,
@@ -40,16 +48,32 @@ export function SessionDrawer({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'active' | 'questions' | 'archived'
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const isAdmin = currentUser?.role === 'admin';
   const td = t.drawer;
   const ts = t.sidebar;
 
-  // Filter conversations by search and tab
+  // Filter conversations by search, tab and archive status
   const filteredConversations = useMemo(() => {
     if (!conversations || !Array.isArray(conversations)) return [];
 
     let list = [...conversations];
+
+    // Filter by archive status & questions
+    if (activeFilter === 'archived') {
+      list = list.filter((c) => Boolean(c.archived));
+    } else if (activeFilter === 'questions') {
+      list = list.filter((c) => !c.archived && ((c.title || '').includes('?') || (c.snippet || '').includes('?')));
+    } else if (activeFilter === 'active') {
+      list = list.filter((c) => !c.archived);
+    } else {
+      // 'all': Default to showing active non-archived conversations to keep drawer uncluttered
+      list = list.filter((c) => !c.archived);
+    }
 
     // Search filter
     if (searchQuery.trim()) {
@@ -59,11 +83,6 @@ export function SessionDrawer({
         const snippet = (conv.snippet || conv.lastMessage || '').toLowerCase();
         return title.includes(q) || snippet.includes(q);
       });
-    }
-
-    // Filter pill
-    if (activeFilter === 'questions') {
-      list = list.filter((c) => (c.title || '').includes('?') || (c.snippet || '').includes('?'));
     }
 
     return list;
@@ -131,6 +150,74 @@ export function SessionDrawer({
     }
   };
 
+  const toggleSelectMode = () => {
+    setIsSelectMode((prev) => {
+      const next = !prev;
+      if (!next) {
+        setSelectedIds(new Set());
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectItem = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredConversations.length && filteredConversations.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredConversations.map((c) => c.id)));
+    }
+  };
+
+  const handleBatchArchive = async () => {
+    if (selectedIds.size === 0 || !onBatchArchiveConversations) return;
+    setIsArchiving(true);
+    try {
+      const idsArray = Array.from(selectedIds);
+      const shouldArchive = activeFilter !== 'archived';
+      await onBatchArchiveConversations(idsArray, shouldArchive);
+      setSelectedIds(new Set());
+      setIsSelectMode(false);
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0 || !onBatchDeleteConversations) return;
+    const count = selectedIds.size;
+    const confirmMsg = (td.confirmBatchDelete || '¿Estás seguro de eliminar las {count} conversaciones seleccionadas? Esta acción no se puede deshacer.').replace('{count}', count);
+    if (window.confirm(confirmMsg)) {
+      setIsDeleting(true);
+      try {
+        const idsArray = Array.from(selectedIds);
+        await onBatchDeleteConversations(idsArray);
+        setSelectedIds(new Set());
+        setIsSelectMode(false);
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
+
+  const handleSingleArchive = async (e, conv) => {
+    e.stopPropagation();
+    if (!onBatchArchiveConversations) return;
+    const targetState = !conv.archived;
+    await onBatchArchiveConversations([conv.id], targetState);
+  };
+
   return (
     <>
       {/* Mobile Backdrop Overlay */}
@@ -150,7 +237,7 @@ export function SessionDrawer({
             : 'w-0 overflow-hidden border-none pointer-events-none md:pointer-events-auto'
         }`}
       >
-        {/* Header with Title, + New Button and Mobile Close */}
+        {/* Header with Title, Multi-select Button, + New Button and Mobile Close */}
         <div className="flex items-center justify-between px-3.5 pt-3 pb-2 border-b border-edge/60">
           <div className="flex items-center gap-2">
             <h2 className="text-[15px] font-semibold text-ink">{td.title}</h2>
@@ -162,6 +249,21 @@ export function SessionDrawer({
           </div>
 
           <div className="flex items-center gap-1.5">
+            {isAdmin && conversations.length > 0 && (
+              <button
+                onClick={toggleSelectMode}
+                className={`p-1.5 rounded-[8px] text-xs font-medium transition-all cursor-pointer ${
+                  isSelectMode
+                    ? 'bg-accent text-white shadow-v2-sm'
+                    : 'bg-sunken border border-edge text-muted hover:text-ink hover:border-accent/40'
+                }`}
+                title={isSelectMode ? (td.cancel || 'Cancelar selección múltiple') : (td.select || 'Seleccionar varios chats')}
+                aria-label="Seleccionar varios chats"
+              >
+                <ListChecks className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             <button
               onClick={handleCreateNew}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-accent text-white font-medium text-xs hover:bg-accent/90 transition-all shadow-v2-sm active:scale-95 cursor-pointer"
@@ -182,158 +284,277 @@ export function SessionDrawer({
           </div>
         </div>
 
-      {/* Search Input Box */}
-      <div className="p-3 border-b border-edge/40">
-        <div className="relative flex items-center">
-          <Search className="w-3.5 h-3.5 text-muted absolute left-3 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={td.searchPlaceholder}
-            className="w-full bg-sunken border border-edge/70 rounded-[10px] pl-8 pr-7 py-1.5 text-xs text-ink placeholder-muted/70 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 p-1 text-muted hover:text-ink cursor-pointer"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto [scrollbar-width:none]">
-          {[
-            { id: 'all', label: td.filterAll },
-            { id: 'active', label: td.filterActive },
-            { id: 'questions', label: td.filterQuestions },
-            { id: 'archived', label: td.filterArchived }
-          ].map((pill) => (
-            <button
-              key={pill.id}
-              onClick={() => setActiveFilter(pill.id)}
-              className={`px-2.5 py-1 rounded-[8px] text-[11.5px] font-medium transition-colors cursor-pointer shrink-0 ${
-                activeFilter === pill.id
-                  ? 'bg-panel text-ink shadow-v2-sm ring-1 ring-edge font-semibold'
-                  : 'text-muted hover:text-ink hover:bg-sunken'
-              }`}
-            >
-              {pill.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Session List with Date Grouping */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-4 [scrollbar-width:none]">
-        {/* Guest Mode Informational Card */}
-        {!isAdmin && (
-          <div className="p-3.5 rounded-[12px] bg-panel border border-edge shadow-v2-sm space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-accent">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{ts.guestTitle}</span>
-            </div>
-            <p className="text-[11.5px] text-muted leading-relaxed">
-              {ts.guestDesc}
-            </p>
-            <div className="pt-2 border-t border-edge flex items-center justify-between">
-              <span className="text-[10.5px] text-muted flex items-center gap-1">
-                <Shield className="w-3 h-3 text-emerald-400" /> Safe guest isolation
-              </span>
+        {/* Batch Selection Action Bar (Visible when in select mode) */}
+        {isSelectMode && (
+          <div className="p-2.5 bg-panel border-b border-edge/80 flex flex-col gap-2 animate-fadeIn shadow-xs">
+            <div className="flex items-center justify-between">
               <button
-                onClick={onOpenLogin}
-                className="text-[11px] text-accent hover:underline font-medium cursor-pointer"
+                onClick={handleSelectAll}
+                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:underline cursor-pointer"
               >
-                {ts.loginBtn}
+                {selectedIds.size === filteredConversations.length && filteredConversations.length > 0 ? (
+                  <>
+                    <CheckSquare className="w-3.5 h-3.5" />
+                    <span>{td.deselectAll || 'Deseleccionar'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Square className="w-3.5 h-3.5 text-muted" />
+                    <span>{td.selectAll || 'Seleccionar todos'} ({filteredConversations.length})</span>
+                  </>
+                )}
+              </button>
+              <span className="text-[11px] font-mono text-muted bg-sunken px-2 py-0.5 rounded-full border border-edge">
+                {selectedIds.size} {td.selectedCount || 'seleccionados'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <button
+                onClick={handleBatchArchive}
+                disabled={selectedIds.size === 0 || isArchiving}
+                className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[8px] bg-sunken border border-edge text-xs font-medium text-ink hover:text-accent hover:border-accent/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-v2-sm"
+                title={activeFilter === 'archived' ? 'Desarchivar seleccionados' : 'Archivar seleccionados'}
+              >
+                {activeFilter === 'archived' ? (
+                  <>
+                    <ArchiveRestore className="w-3.5 h-3.5 text-sky-400" />
+                    <span>{td.unarchiveSelected || 'Desarchivar'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Archive className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{td.archiveSelected || 'Archivar'}</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleBatchDelete}
+                disabled={selectedIds.size === 0 || isDeleting}
+                className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-[8px] bg-rose-500/10 border border-rose-500/20 text-xs font-medium text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-v2-sm"
+                title="Eliminar seleccionados"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{td.deleteSelected || 'Eliminar'}</span>
+              </button>
+
+              <button
+                onClick={toggleSelectMode}
+                className="p-1.5 rounded-[8px] text-muted hover:text-ink hover:bg-sunken border border-edge transition-colors cursor-pointer"
+                title={td.cancel || 'Cancelar'}
+              >
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Loading Indicator */}
-        {loading && (
-          <div className="text-center py-6 text-xs text-muted flex items-center justify-center gap-2 font-mono">
-            <Clock className="w-3.5 h-3.5 animate-spin text-accent" />
-            <span>{ts.loadingSessions}</span>
+        {/* Search Input Box */}
+        <div className="p-3 border-b border-edge/40">
+          <div className="relative flex items-center">
+            <Search className="w-3.5 h-3.5 text-muted absolute left-3 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={td.searchPlaceholder}
+              className="w-full bg-sunken border border-edge/70 rounded-[10px] pl-8 pr-7 py-1.5 text-xs text-ink placeholder-muted/70 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 p-1 text-muted hover:text-ink cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-        )}
 
-        {/* Empty States */}
-        {!loading && isAdmin && filteredConversations.length === 0 && (
-          <div className="text-center py-8 px-4 text-xs text-muted space-y-1">
-            <MessageSquare className="w-6 h-6 mx-auto text-muted/50 mb-1" />
-            <p className="font-medium text-ink">{ts.noSessions}</p>
-            <p className="text-[11px]">{ts.noSessionsDesc}</p>
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto [scrollbar-width:none]">
+            {[
+              { id: 'all', label: td.filterAll },
+              { id: 'active', label: td.filterActive },
+              { id: 'questions', label: td.filterQuestions },
+              { id: 'archived', label: td.filterArchived }
+            ].map((pill) => (
+              <button
+                key={pill.id}
+                onClick={() => {
+                  setActiveFilter(pill.id);
+                  setSelectedIds(new Set());
+                }}
+                className={`px-2.5 py-1 rounded-[8px] text-[11.5px] font-medium transition-colors cursor-pointer shrink-0 ${
+                  activeFilter === pill.id
+                    ? 'bg-panel text-ink shadow-v2-sm ring-1 ring-edge font-semibold'
+                    : 'text-muted hover:text-ink hover:bg-sunken'
+                }`}
+              >
+                {pill.label}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
-        {/* Date Grouped Sessions */}
-        {isAdmin &&
-          groupedConversations.map((group) => (
-            <div key={group.key} className="space-y-1">
-              <div className="px-2 pt-1 pb-0.5 text-[11px] font-semibold tracking-wider uppercase text-muted/70">
-                {group.label}
+        {/* Session List with Date Grouping */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-4 [scrollbar-width:none]">
+          {/* Guest Mode Informational Card */}
+          {!isAdmin && (
+            <div className="p-3.5 rounded-[12px] bg-panel border border-edge shadow-v2-sm space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-accent">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{ts.guestTitle}</span>
               </div>
-              <div className="space-y-1">
-                {group.items.map((conv) => {
-                  const isActive = conv.id === activeId;
-                  const displayTitle = conv.title || `Session ${conv.id?.slice(0, 8)}`;
-                  const displaySnippet = conv.snippet || conv.lastMessage || 'No preview available';
-                  const displayTime = formatRelativeTime(conv.updatedAt || conv.createdAt);
-
-                  return (
-                    <div
-                      key={conv.id}
-                      onClick={() => handleSelectConv(conv.id)}
-                      className={`group relative flex flex-col p-2.5 rounded-[10px] text-left transition-all cursor-pointer ${
-                        isActive
-                          ? 'bg-panel ring-1 ring-edge shadow-v2-sm text-ink'
-                          : 'hover:bg-sunken text-ink/80 hover:text-ink'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                              isActive ? 'bg-accent' : 'bg-muted/40'
-                            }`}
-                          />
-                          <span className="truncate text-[12.5px] font-medium text-ink">
-                            {displayTitle}
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-mono text-muted shrink-0">
-                          {displayTime}
-                        </span>
-                      </div>
-
-                      <p className="text-[11.5px] text-muted line-clamp-1 truncate pr-6">
-                        {displaySnippet}
-                      </p>
-
-                      {/* Delete Conversation Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(ts.archiveConfirm)) {
-                            onDeleteConversation(conv.id);
-                          }
-                        }}
-                        title={ts.archiveConfirm}
-                        className="absolute right-2 bottom-2 p-1 text-muted/40 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity rounded cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
+              <p className="text-[11.5px] text-muted leading-relaxed">
+                {ts.guestDesc}
+              </p>
+              <div className="pt-2 border-t border-edge flex items-center justify-between">
+                <span className="text-[10.5px] text-muted flex items-center gap-1">
+                  <Shield className="w-3 h-3 text-emerald-400" /> Safe guest isolation
+                </span>
+                <button
+                  onClick={onOpenLogin}
+                  className="text-[11px] text-accent hover:underline font-medium cursor-pointer"
+                >
+                  {ts.loginBtn}
+                </button>
               </div>
             </div>
-          ))}
-      </div>
-    </aside>
+          )}
+
+          {/* Loading Indicator */}
+          {loading && (
+            <div className="text-center py-6 text-xs text-muted flex items-center justify-center gap-2 font-mono">
+              <Clock className="w-3.5 h-3.5 animate-spin text-accent" />
+              <span>{ts.loadingSessions}</span>
+            </div>
+          )}
+
+          {/* Empty States */}
+          {!loading && isAdmin && filteredConversations.length === 0 && (
+            <div className="text-center py-8 px-4 text-xs text-muted space-y-1">
+              <MessageSquare className="w-6 h-6 mx-auto text-muted/50 mb-1" />
+              <p className="font-medium text-ink">{ts.noSessions}</p>
+              <p className="text-[11px]">{ts.noSessionsDesc}</p>
+            </div>
+          )}
+
+          {/* Date Grouped Sessions */}
+          {isAdmin &&
+            groupedConversations.map((group) => (
+              <div key={group.key} className="space-y-1">
+                <div className="px-2 pt-1 pb-0.5 text-[11px] font-semibold tracking-wider uppercase text-muted/70">
+                  {group.label}
+                </div>
+                <div className="space-y-1">
+                  {group.items.map((conv) => {
+                    const isActive = conv.id === activeId;
+                    const isSelected = selectedIds.has(conv.id);
+                    const displayTitle = conv.title || `Session ${conv.id?.slice(0, 8)}`;
+                    const displaySnippet = conv.snippet || conv.lastMessage || 'No preview available';
+                    const displayTime = formatRelativeTime(conv.updatedAt || conv.createdAt);
+
+                    return (
+                      <div
+                        key={conv.id}
+                        onClick={() => {
+                          if (isSelectMode) {
+                            toggleSelectItem(conv.id);
+                          } else {
+                            handleSelectConv(conv.id);
+                          }
+                        }}
+                        className={`group relative flex items-start gap-2 p-2.5 rounded-[10px] text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-accent/10 border border-accent/40 text-ink shadow-v2-sm ring-1 ring-accent/30'
+                            : isActive
+                            ? 'bg-panel ring-1 ring-edge shadow-v2-sm text-ink'
+                            : 'hover:bg-sunken text-ink/80 hover:text-ink'
+                        }`}
+                      >
+                        {/* Checkbox when in select mode */}
+                        {isSelectMode && (
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelectItem(conv.id);
+                            }}
+                            className="mt-0.5 shrink-0 cursor-pointer"
+                          >
+                            {isSelected ? (
+                              <div className="w-4 h-4 rounded bg-accent text-white flex items-center justify-center shadow-xs">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                              </div>
+                            ) : (
+                              <div className="w-4 h-4 rounded border border-edge/80 bg-sunken hover:border-accent/60" />
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {!isSelectMode && (
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    isActive ? 'bg-accent' : 'bg-muted/40'
+                                  }`}
+                                />
+                              )}
+                              <span className="truncate text-[12.5px] font-medium text-ink">
+                                {displayTitle}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono text-muted shrink-0">
+                              {displayTime}
+                            </span>
+                          </div>
+
+                          <p className="text-[11.5px] text-muted line-clamp-1 truncate pr-12">
+                            {displaySnippet}
+                          </p>
+                        </div>
+
+                        {/* Action buttons (Archive & Delete) visible on hover when not in select mode */}
+                        {!isSelectMode && (
+                          <div className="absolute right-2 bottom-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Single Archive/Unarchive button */}
+                            <button
+                              onClick={(e) => handleSingleArchive(e, conv)}
+                              title={conv.archived ? (td.unarchiveSelected || 'Desarchivar') : (td.archiveSelected || 'Archivar')}
+                              className="p-1 text-muted/60 hover:text-accent rounded hover:bg-sunken cursor-pointer transition-colors"
+                            >
+                              {conv.archived ? (
+                                <ArchiveRestore className="w-3.5 h-3.5" />
+                              ) : (
+                                <Archive className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+
+                            {/* Delete Conversation Button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(ts.archiveConfirm)) {
+                                  onDeleteConversation(conv.id);
+                                }
+                              }}
+                              title={ts.archiveConfirm}
+                              className="p-1 text-muted/60 hover:text-rose-400 rounded hover:bg-rose-500/10 cursor-pointer transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+        </div>
+      </aside>
     </>
   );
 }

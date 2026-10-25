@@ -17,7 +17,9 @@ import { translations } from './i18n/translations';
 import { 
   fetchConversations, 
   fetchConversationDetail, 
-  deleteConversation, 
+  deleteConversation,
+  batchDeleteConversations,
+  batchArchiveConversations,
   streamChatMessage, 
   fetchMetrics, 
   fetchCalendarEvents, 
@@ -220,6 +222,31 @@ export function App() {
       }
     } catch (err) {
       console.error('Error deleting conversation:', err);
+    }
+  };
+
+  const handleBatchDeleteConversations = async (ids) => {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    try {
+      await batchDeleteConversations(ids);
+      setConversations((prev) => prev.filter((c) => !ids.includes(c.id)));
+      if (ids.includes(activeConversationId)) {
+        handleNewChat();
+      }
+    } catch (err) {
+      console.error('Error batch deleting conversations:', err);
+    }
+  };
+
+  const handleBatchArchiveConversations = async (ids, archived = true) => {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    try {
+      await batchArchiveConversations(ids, archived);
+      setConversations((prev) =>
+        prev.map((c) => (ids.includes(c.id) ? { ...c, archived: Boolean(archived) } : c))
+      );
+    } catch (err) {
+      console.error('Error batch archiving conversations:', err);
     }
   };
 
@@ -563,6 +590,8 @@ export function App() {
                 onSelectConversation={handleSelectConversation}
                 onNewChat={handleNewChat}
                 onDeleteConversation={handleDeleteConversation}
+                onBatchDeleteConversations={handleBatchDeleteConversations}
+                onBatchArchiveConversations={handleBatchArchiveConversations}
                 loading={conversationsLoading}
                 currentUser={currentUser}
                 onOpenLogin={() => setIsLoginOpen(true)}

@@ -69,7 +69,18 @@ export const translations = {
       filterArchived: "Archived",
       today: "Today",
       yesterday: "Yesterday",
-      older: "Older"
+      older: "Older",
+      select: "Select",
+      cancel: "Cancel",
+      selectAll: "Select all",
+      deselectAll: "Deselect",
+      selectedCount: "selected",
+      archiveSelected: "Archive",
+      unarchiveSelected: "Unarchive",
+      deleteSelected: "Delete",
+      archiveConfirm: "Archive this conversation?",
+      confirmBatchDelete: "Are you sure you want to delete {count} selected conversations? This cannot be undone.",
+      confirmBatchArchive: "Archive {count} selected conversations?"
     },
     subagents: {
       title: "Subagents & Inspector",
@@ -369,7 +380,18 @@ export const translations = {
       filterArchived: "Archivados",
       today: "Hoy",
       yesterday: "Ayer",
-      older: "Anteriores"
+      older: "Anteriores",
+      select: "Seleccionar",
+      cancel: "Cancelar",
+      selectAll: "Seleccionar todos",
+      deselectAll: "Deseleccionar",
+      selectedCount: "seleccionados",
+      archiveSelected: "Archivar",
+      unarchiveSelected: "Desarchivar",
+      deleteSelected: "Eliminar",
+      archiveConfirm: "¿Archivar esta conversación?",
+      confirmBatchDelete: "¿Estás seguro de eliminar las {count} conversaciones seleccionadas? Esta acción no se puede deshacer.",
+      confirmBatchArchive: "¿Archivar las {count} conversaciones seleccionadas?"
     },
     subagents: {
       title: "Subagentes & Inspector",
