@@ -335,6 +335,7 @@ export function CalendarView({
   };
 
   const isAdmin = currentUser?.role === 'admin';
+  const isEs = (t?.calendar?.todayBtn === 'Hoy') || (t?.rail?.calendar === 'Calendario');
   const clt = t?.calendar || {
     title: "Rodrigo's Calendar",
     subtitle: "Consular appointments, scheduled VPS maintenance, and milestones.",
@@ -343,6 +344,8 @@ export function CalendarView({
     viewWeek: "Week",
     viewDay: "Day",
     todayBtn: "Today",
+    nowBtn: "Now",
+    scrollToNowTooltip: "Jump to current hour",
     searchPlaceholder: "Search calendar...",
     noEventsDay: "No events scheduled for this day"
   };
@@ -975,10 +978,10 @@ export function CalendarView({
                     ? 'bg-accent text-white font-semibold shadow-xs'
                     : 'text-muted hover:text-ink'
                 }`}
-                title="Cabecera: Días | Columna izquierda: Horas"
+                title={clt.orientationDaysHeader || (isEs ? 'Cabecera: Días | Columna izquierda: Horas' : 'Header: Days | Left Column: Hours')}
               >
                 <Columns3 className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">Cabecera Días</span>
+                <span className="hidden lg:inline">{clt.daysHeaderLabel || (isEs ? 'Cabecera Días' : 'Days Header')}</span>
               </button>
               <button
                 onClick={() => handleOrientationChange('days-rows')}
@@ -987,10 +990,10 @@ export function CalendarView({
                     ? 'bg-accent text-white font-semibold shadow-xs'
                     : 'text-muted hover:text-ink'
                 }`}
-                title="Columna izquierda: Días | Cabecera: Horas"
+                title={clt.orientationDaysColumn || (isEs ? 'Columna izquierda: Días | Cabecera: Horas' : 'Left Column: Days | Header: Hours')}
               >
                 <Rows3 className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">Columna Días</span>
+                <span className="hidden lg:inline">{clt.daysColumnLabel || (isEs ? 'Columna Días' : 'Days Column')}</span>
               </button>
             </div>
           )}
@@ -1242,16 +1245,16 @@ export function CalendarView({
                     <button
                       onClick={() => handleOrientationChange('days-rows')}
                       className="p-1 rounded text-muted hover:text-accent hover:bg-sunken cursor-pointer transition-colors"
-                      title="Cambiar orientación a Columna Días"
+                      title={clt.switchOrientationDaysCol || (isEs ? 'Cambiar orientación a Columna Días' : 'Switch orientation to Days Column')}
                     >
                       <ArrowLeftRight className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={handleScrollToNow}
                       className="text-[9.5px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25 border border-accent/30 transition-colors cursor-pointer"
-                      title="Saltar a la hora actual"
+                      title={clt.scrollToNowTooltip || (isEs ? 'Saltar a la hora actual' : 'Jump to current hour')}
                     >
-                      Ahora
+                      {clt.nowBtn || (isEs ? 'Ahora' : 'Now')}
                     </button>
                   </div>
 
@@ -1297,7 +1300,7 @@ export function CalendarView({
                               <button
                                 onClick={() => handleCellClick(dayIso, 10)}
                                 className="p-1 rounded text-muted hover:text-accent hover:bg-sunken cursor-pointer transition-colors"
-                                title="Añadir evento a este día"
+                                title={clt.addEventDayTooltip || (isEs ? 'Añadir evento a este día' : 'Add event to this day')}
                               >
                                 <Plus className="w-3.5 h-3.5" />
                               </button>
@@ -1356,7 +1359,7 @@ export function CalendarView({
                                 className={`border-b border-edge/25 transition-colors cursor-pointer group/vcell ${
                                   isCurrentHourSlot ? 'bg-accent/5' : isNight ? 'bg-black/15' : 'hover:bg-panel/40'
                                 }`}
-                                title={isAdmin ? `Click para añadir evento a las ${String(h).padStart(2, '0')}:00` : undefined}
+                                title={isAdmin ? (clt.addEventAtHour ? clt.addEventAtHour.replace('{time}', String(h).padStart(2, '0')) : (isEs ? `Click para añadir evento a las ${String(h).padStart(2, '0')}:00` : `Click to add event at ${String(h).padStart(2, '0')}:00`)) : undefined}
                               >
                                 {isAdmin && (
                                   <div className="w-full h-full opacity-0 group-hover/vcell:opacity-100 flex items-center justify-center pointer-events-none">
@@ -1402,20 +1405,20 @@ export function CalendarView({
                       <button
                         onClick={() => handleOrientationChange('days-cols')}
                         className="p-1 rounded text-muted hover:text-accent hover:bg-sunken cursor-pointer transition-colors"
-                        title="Cambiar orientación a Cabecera Días"
+                        title={clt.switchOrientationDaysHeader || (isEs ? 'Cambiar orientación a Cabecera Días' : 'Switch orientation to Days Header')}
                       >
                         <ArrowLeftRight className="w-3.5 h-3.5" />
                       </button>
                       <span className="text-[11px] font-mono font-semibold text-muted uppercase tracking-wider">
-                        {clt.dayCol || 'Día \\ Horas'}
+                        {clt.dayHoursHeader || (isEs ? 'Día \\ Horas' : 'Day \\ Hours')}
                       </span>
                     </div>
                     <button
                       onClick={handleScrollToNow}
                       className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25 border border-accent/30 transition-colors cursor-pointer"
-                      title="Saltar a la hora actual"
+                      title={clt.scrollToNowTooltip || (isEs ? 'Saltar a la hora actual' : 'Jump to current hour')}
                     >
-                      Ahora
+                      {clt.nowBtn || (isEs ? 'Ahora' : 'Now')}
                     </button>
                   </div>
                   <div className="grid grid-cols-[repeat(24,72px)] shrink-0">
@@ -1482,7 +1485,7 @@ export function CalendarView({
                                 <button
                                   onClick={() => handleCellClick(dayIso, 10)}
                                   className="p-0.5 rounded text-muted hover:text-accent hover:bg-sunken cursor-pointer transition-colors"
-                                  title="Añadir evento a este día"
+                                  title={clt.addEventDayTooltip || (isEs ? 'Añadir evento a este día' : 'Add event to this day')}
                                 >
                                   <Plus className="w-3.5 h-3.5" />
                                 </button>
@@ -1508,7 +1511,7 @@ export function CalendarView({
                                   className={`border-r border-edge/30 h-full transition-colors cursor-pointer group/cell ${
                                     isCurrentHourSlot ? 'bg-accent/5' : isNight ? 'bg-black/15' : 'hover:bg-panel/40'
                                   }`}
-                                  title={isAdmin ? `Click para añadir evento a las ${String(h).padStart(2, '0')}:00` : undefined}
+                                  title={isAdmin ? (clt.addEventAtHour ? clt.addEventAtHour.replace('{time}', String(h).padStart(2, '0')) : (isEs ? `Click para añadir evento a las ${String(h).padStart(2, '0')}:00` : `Click to add event at ${String(h).padStart(2, '0')}:00`)) : undefined}
                                 >
                                   {isAdmin && (
                                     <div className="w-full h-full opacity-0 group-hover/cell:opacity-100 flex items-center justify-center pointer-events-none">
