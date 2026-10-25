@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/api.js';
+import v1Routes from './routes/v1.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,8 +77,9 @@ const chatLimiter = rateLimit({
 
 app.use('/api/chat', chatLimiter);
 
-// Mount API
+// Mount API & OpenAI-compatible Antigravity Bridge
 app.use('/api', apiRoutes);
+app.use('/v1', v1Routes);
 
 // Serve static frontend in production
 const clientDistPath = path.resolve(__dirname, '../../client/dist');
@@ -86,7 +88,7 @@ app.use(express.static(clientDistPath));
 // SPA catch-all route to client index.html
 app.get('*', (req, res, next) => {
   // If request is for an unhandled API endpoint, return 404 JSON
-  if (req.path.startsWith('/api/')) {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/v1/')) {
     return res.status(404).json({ error: 'Endpoint not found.' });
   }
   
