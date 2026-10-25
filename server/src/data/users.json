@@ -24,9 +24,10 @@
     "name": "Eduardo Larios",
     "role": "admin",
     "isOwner": false,
-    "canEditProjects": false,
+    "canEditProjects": true,
     "picture": null,
     "addedAt": "2026-10-24T23:40:26.110Z",
-    "lastLogin": null
+    "lastLogin": null,
+    "updatedAt": "2026-10-24T23:41:49.167Z"
   }
 ]

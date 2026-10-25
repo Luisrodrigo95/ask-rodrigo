@@ -485,3 +485,115 @@ export async function deleteAuthorizedUser(email) {
   return await response.json();
 }
 
+/**
+ * Developer IDE & File Management Endpoints
+ */
+export async function fetchDeveloperProjects() {
+  const response = await fetch(`${API_BASE}/developer/projects`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al obtener proyectos disponibles');
+  }
+  return await response.json();
+}
+
+export async function fetchDeveloperTree(projectId) {
+  const response = await fetch(`${API_BASE}/developer/tree?projectId=${encodeURIComponent(projectId)}`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al cargar el árbol de archivos');
+  }
+  return await response.json();
+}
+
+export async function fetchDeveloperFile(projectId, filePath) {
+  const response = await fetch(
+    `${API_BASE}/developer/file?projectId=${encodeURIComponent(projectId)}&filePath=${encodeURIComponent(filePath)}`,
+    {
+      headers: getAuthHeaders()
+    }
+  );
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al cargar archivo');
+  }
+  return await response.json();
+}
+
+export async function saveDeveloperFile(projectId, filePath, content) {
+  const response = await fetch(`${API_BASE}/developer/file`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ projectId, filePath, content })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al guardar el archivo');
+  }
+  return await response.json();
+}
+
+export async function createDeveloperItem(projectId, targetPath, name, type) {
+  const response = await fetch(`${API_BASE}/developer/create`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ projectId, targetPath, name, type })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al crear elemento');
+  }
+  return await response.json();
+}
+
+export async function deleteDeveloperItem(projectId, itemPath) {
+  const response = await fetch(`${API_BASE}/developer/item`, {
+    method: 'DELETE',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ projectId, itemPath })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al eliminar elemento');
+  }
+  return await response.json();
+}
+
+export async function renameDeveloperItem(projectId, oldPath, newName) {
+  const response = await fetch(`${API_BASE}/developer/rename`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ projectId, oldPath, newName })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al renombrar elemento');
+  }
+  return await response.json();
+}
+
+export async function uploadDeveloperFiles(projectId, destinationPath, files) {
+  const formData = new FormData();
+  formData.append('projectId', projectId);
+  formData.append('destinationPath', destinationPath || '');
+  for (let i = 0; i < files.length; i++) {
+    formData.append('files', files[i]);
+  }
+
+  const response = await fetch(`${API_BASE}/developer/upload`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: formData
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al subir archivos');
+  }
+  return await response.json();
+}
+
+

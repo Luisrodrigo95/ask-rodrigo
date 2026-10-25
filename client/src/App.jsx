@@ -7,7 +7,9 @@ import { FloatingDock } from './components/FloatingDock';
 import { ChatView } from './components/ChatView';
 import { MetricsView } from './components/MetricsView';
 import { CalendarView } from './components/CalendarView';
+import { DeveloperView } from './components/DeveloperView';
 import { ProfileModal } from './components/ProfileModal';
+
 import { NotesModal } from './components/NotesModal';
 import { LoginModal } from './components/LoginModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -134,11 +136,12 @@ export function App() {
     } else {
       setConversations([]);
       setMetrics(null);
-      if (activeTab === 'metrics') {
+      if (activeTab === 'metrics' || activeTab === 'development') {
         setActiveTab('chat');
       }
     }
   }, [currentUser?.role]);
+
 
   const loadHealth = async () => {
     try {
@@ -569,6 +572,11 @@ export function App() {
                 t={t}
               />
             </div>
+          ) : activeTab === 'development' ? (
+            <DeveloperView
+              currentUser={currentUser}
+              t={t}
+            />
           ) : (
             <CalendarView
               events={calendarEvents}
@@ -580,6 +588,7 @@ export function App() {
             />
           )}
         </div>
+
       </div>
 
       {/* Floating Quick Dock (Bottom-Right) */}

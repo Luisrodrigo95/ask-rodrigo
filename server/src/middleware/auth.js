@@ -65,8 +65,31 @@ export function requireOwner(req, res, next) {
 }
 
 /**
+ * Requires project editing permissions (Owner or Collaborator with canEditProjects: true)
+ */
+export function requireProjectEditor(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({
+      error: 'Acceso restringido. Esta funcionalidad requiere privilegios de Administrador.'
+    });
+  }
+  const primaryAdmin = (process.env.PRIMARY_ADMIN_EMAIL || 'lg2012garcia@gmail.com').toLowerCase().trim();
+  const userEmail = (req.user?.email || '').toLowerCase().trim();
+  const isOwner = Boolean(req.user.isOwner || userEmail === primaryAdmin);
+  const canEdit = Boolean(req.user.canEditProjects);
+
+  if (!isOwner && !canEdit) {
+    return res.status(403).json({
+      error: 'Acceso denegado: Tu cuenta no tiene permisos para modificar, subir o borrar archivos en los proyectos.'
+    });
+  }
+  next();
+}
+
+/**
  * Sign token helper
  */
 export function signUserToken(payload, expiresIn = '30d') {
   return jwt.sign(payload, getJwtSecret(), { expiresIn });
 }
+

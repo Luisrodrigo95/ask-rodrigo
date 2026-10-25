@@ -82,13 +82,13 @@ export function PrimaryRail({
         { divider: true },
         {
           id: 'development',
-          label: tr.development,
+          label: tr.development || 'Developer',
           icon: CodeXml,
-          active: false,
-          onClick: () => onSelectTab('chat'),
-          badge: '5',
-          badgeColor: 'bg-accent/10 text-accent font-semibold'
+          active: activeTab === 'development',
+          onClick: () => onSelectTab('development'),
+          badge: null
         },
+
         {
           id: 'metrics',
           label: tr.infrastructure,

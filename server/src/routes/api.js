@@ -42,7 +42,19 @@ import {
   updateUserPermissionsHandler,
   deleteUserHandler
 } from '../controllers/userController.js';
-import { authenticateToken, requireAdmin, requireOwner } from '../middleware/auth.js';
+import {
+  getProjectsHandler,
+  getTreeHandler,
+  readFileHandler,
+  saveFileHandler,
+  createItemHandler,
+  deleteItemHandler,
+  renameItemHandler,
+  developerUploadMiddleware,
+  uploadDeveloperFilesHandler
+} from '../controllers/developerController.js';
+import { authenticateToken, requireAdmin, requireOwner, requireProjectEditor } from '../middleware/auth.js';
+
 
 const router = express.Router();
 
@@ -105,4 +117,18 @@ router.post('/users', requireOwner, addUserHandler);
 router.patch('/users/:email/permissions', requireOwner, updateUserPermissionsHandler);
 router.delete('/users/:email', requireOwner, deleteUserHandler);
 
+// --- Developer Suite (VS Code Online / Monaco Engine) ---
+// Reading files/tree: requireAdmin (Rodrigo & Collaborators can read)
+router.get('/developer/projects', requireAdmin, getProjectsHandler);
+router.get('/developer/tree', requireAdmin, getTreeHandler);
+router.get('/developer/file', requireAdmin, readFileHandler);
+
+// Modifying/Uploading/Deleting files: requireProjectEditor (Owner or Collaborators with canEditProjects: true)
+router.post('/developer/file', requireProjectEditor, saveFileHandler);
+router.post('/developer/create', requireProjectEditor, createItemHandler);
+router.delete('/developer/item', requireProjectEditor, deleteItemHandler);
+router.post('/developer/rename', requireProjectEditor, renameItemHandler);
+router.post('/developer/upload', requireProjectEditor, developerUploadMiddleware, uploadDeveloperFilesHandler);
+
 export default router;
+
