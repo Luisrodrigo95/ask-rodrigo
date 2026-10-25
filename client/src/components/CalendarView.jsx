@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -51,6 +51,103 @@ function formatDateISO(d) {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+const HOUR_WIDTH = 72;
+const CARD_HEIGHT = 34;
+const CARD_GAP = 4;
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+function parseTimeToMinutes(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  const match = timeStr.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return Math.min(1440, Math.max(0, h * 60 + m));
+}
+
+function layoutDayEvents(events, hourWidth = HOUR_WIDTH) {
+  if (!events || events.length === 0) {
+    return { placed: [], rowHeight: 84 };
+  }
+
+  const parsed = events.map((evt) => {
+    let startMin = 9 * 60;
+    let endMin = 10 * 60;
+
+    if (evt.eventType === 'absence') {
+      startMin = 0;
+      endMin = 1440;
+    } else if (evt.time) {
+      const parts = evt.time.split(/[-–—]/);
+      if (parts.length >= 2) {
+        const sm = parseTimeToMinutes(parts[0].trim());
+        const em = parseTimeToMinutes(parts[1].trim());
+        if (sm !== null) startMin = sm;
+        if (em !== null) endMin = em;
+        else endMin = startMin + 60;
+      } else {
+        const sm = parseTimeToMinutes(evt.time.trim());
+        if (sm !== null) {
+          startMin = sm;
+          endMin = startMin + 60;
+        }
+      }
+    } else {
+      startMin = 9 * 60;
+      endMin = 17 * 60;
+    }
+
+    if (endMin <= startMin) {
+      endMin = Math.min(1440, startMin + 45);
+    }
+
+    return {
+      evt,
+      startMin,
+      endMin
+    };
+  });
+
+  // Sort by startMin, then duration descending
+  parsed.sort((a, b) => a.startMin - b.startMin || (b.endMin - b.startMin) - (a.endMin - a.startMin));
+
+  const lanes = [];
+
+  const placed = parsed.map((item) => {
+    let assignedLane = -1;
+    for (let i = 0; i < lanes.length; i++) {
+      if (lanes[i] <= item.startMin) {
+        assignedLane = i;
+        lanes[i] = item.endMin;
+        break;
+      }
+    }
+    if (assignedLane === -1) {
+      assignedLane = lanes.length;
+      lanes.push(item.endMin);
+    }
+
+    const left = (item.startMin / 60) * hourWidth;
+    const rawWidth = ((item.endMin - item.startMin) / 60) * hourWidth;
+    const width = Math.min(24 * hourWidth - left, Math.max(rawWidth, 105));
+    const top = 10 + assignedLane * (CARD_HEIGHT + CARD_GAP);
+
+    return {
+      ...item,
+      lane: assignedLane,
+      left,
+      width,
+      top,
+      height: CARD_HEIGHT
+    };
+  });
+
+  const rowHeight = Math.max(84, 16 + (lanes.length || 1) * (CARD_HEIGHT + CARD_GAP) + 10);
+
+  return { placed, rowHeight };
 }
 
 export function CalendarView({
@@ -172,6 +269,44 @@ export function CalendarView({
     }, 30000);
     return () => clearInterval(timer);
   }, []);
+
+  const weekTimelineRef = useRef(null);
+
+  // Auto-scroll weekly grid horizontally to the current hour on mount/week switch
+  useEffect(() => {
+    if (viewMode === 'week' && weekTimelineRef.current) {
+      const nowH = new Date().getHours();
+      const targetHour = Math.max(0, Math.min(nowH - 1, 16));
+      setTimeout(() => {
+        if (weekTimelineRef.current) {
+          weekTimelineRef.current.scrollLeft = targetHour * HOUR_WIDTH;
+        }
+      }, 50);
+    }
+  }, [viewMode, selectedDate]);
+
+  const handleCellClick = (dayIso, hour) => {
+    if (!isAdmin) return;
+    setNewDate(dayIso);
+    setNewTime(`${String(hour).padStart(2, '0')}:00`);
+    setShowModal(true);
+  };
+
+  const handleScrollToNow = () => {
+    if (weekTimelineRef.current) {
+      const nowH = new Date().getHours();
+      weekTimelineRef.current.scrollTo({
+        left: Math.max(0, (nowH - 1) * HOUR_WIDTH),
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const currentHour = currentTime.getHours();
+  const nowPositionLeft = useMemo(() => {
+    const mins = currentTime.getHours() * 60 + currentTime.getMinutes();
+    return (mins / 60) * HOUR_WIDTH;
+  }, [currentTime]);
 
   // Compute the 7 days of the active week (Monday to Sunday)
   const weekDays = useMemo(() => {
@@ -346,6 +481,148 @@ export function CalendarView({
 
   const formatCurrentTimeString = () => {
     return currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const renderEventCard = (evt, item) => {
+    // 1. Private and non-admin
+    if (evt.isPrivate && !isAdmin) {
+      return (
+        <div
+          key={evt.id}
+          style={{
+            left: `${item.left}px`,
+            width: `${item.width}px`,
+            top: `${item.top}px`,
+            height: `${item.height}px`
+          }}
+          className="absolute z-10 flex items-center gap-1.5 px-2 rounded-[8px] border border-edge bg-panel/70 opacity-60 grayscale select-none text-[11px] font-mono text-muted shadow-xs"
+          title="Private Event"
+        >
+          <Lock className="w-3 h-3 text-rose-400 shrink-0" />
+          <span className="truncate">Private</span>
+        </div>
+      );
+    }
+
+    // 2. Shift / Work Block
+    if (evt.eventType === 'shift') {
+      return (
+        <div
+          key={evt.id}
+          style={{
+            left: `${item.left}px`,
+            width: `${item.width}px`,
+            top: `${item.top}px`,
+            height: `${item.height}px`
+          }}
+          className="absolute z-10 group flex items-center justify-between gap-1.5 px-2.5 rounded-[8px] bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs shadow-xs hover:z-30 hover:border-amber-400 transition-all cursor-pointer overflow-hidden"
+          title={`${evt.title} (${evt.time || '10:00–18:00'}) ${evt.description ? `- ${evt.description}` : ''}`}
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="font-mono font-bold text-[10.5px] text-amber-300 shrink-0">
+              {evt.time || 'Shift'}
+            </span>
+            <span className="truncate font-medium">{evt.title}</span>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteEvent(evt.id);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-amber-300 hover:text-rose-400 transition-opacity cursor-pointer shrink-0"
+              title="Eliminar evento"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // 3. Absence / Leave
+    if (evt.eventType === 'absence') {
+      return (
+        <div
+          key={evt.id}
+          style={{
+            left: `${item.left}px`,
+            width: `${item.width}px`,
+            top: `${item.top}px`,
+            height: `${item.height}px`
+          }}
+          className="absolute z-10 group flex items-center justify-between gap-1.5 px-2.5 rounded-[8px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs shadow-xs hover:z-30 hover:border-emerald-400 transition-all cursor-pointer overflow-hidden"
+          title={`${evt.title} (Ausencia / Permiso) ${evt.description ? `- ${evt.description}` : ''}`}
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+            <span className="truncate font-medium">{evt.title}</span>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteEvent(evt.id);
+              }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-emerald-300 hover:text-rose-400 transition-opacity cursor-pointer shrink-0"
+              title="Eliminar evento"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    // 4. Standard Event / Milestone
+    const cat = (evt.category || '').toLowerCase();
+    const isServer = cat.includes('servidor') || cat.includes('server') || evt.layer === 'server';
+    const isCita = cat.includes('cita') || cat.includes('consular') || evt.layer === 'consular';
+    const isDev = cat.includes('project') || cat.includes('desarrollo') || evt.layer === 'projects';
+
+    const colorClasses = isServer
+      ? 'bg-teal-500/20 border-teal-500/40 text-teal-200 hover:border-teal-400'
+      : isCita
+      ? 'bg-purple-500/20 border-purple-500/40 text-purple-200 hover:border-purple-400'
+      : isDev
+      ? 'bg-accent/20 border-accent/40 text-accent hover:border-accent'
+      : 'bg-sky-500/20 border-sky-500/40 text-sky-200 hover:border-sky-400';
+
+    return (
+      <div
+        key={evt.id}
+        style={{
+          left: `${item.left}px`,
+          width: `${item.width}px`,
+          top: `${item.top}px`,
+          height: `${item.height}px`
+        }}
+        className={`absolute z-10 group flex items-center justify-between gap-1.5 px-2 rounded-[8px] border text-xs shadow-xs hover:z-30 transition-all cursor-pointer overflow-hidden ${colorClasses}`}
+        title={`${evt.title} (${evt.time || 'Sin hora'}) [${evt.category}] ${evt.description ? `- ${evt.description}` : ''}`}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          {evt.time && (
+            <span className="text-[10px] font-mono font-semibold px-1 py-0.2 rounded bg-black/40 shrink-0">
+              {evt.time}
+            </span>
+          )}
+          <span className="truncate font-medium text-[11.5px]">{evt.title}</span>
+          {evt.isPrivate && <Lock className="w-2.5 h-2.5 text-rose-400 shrink-0" />}
+        </div>
+        {isAdmin && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteEvent(evt.id);
+            }}
+            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:text-rose-400 text-muted hover:bg-rose-500/15 transition-all cursor-pointer shrink-0"
+            title="Eliminar evento"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -649,197 +926,148 @@ export function CalendarView({
         </aside>
 
         {/* Main Agenda Timeline Container */}
-        <main className="min-w-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
-          {/* VIEW 1: WEEK AGENDA TIMELINE (Ask Marvin Core) */}
+        <main className={`min-w-0 flex-1 ${viewMode === 'week' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto [scrollbar-width:thin]'}`}>
+          {/* VIEW 1: WEEK MATRIX GRID (Days as Rows, Hours as Columns) */}
           {viewMode === 'week' && (
-            <div className="divide-y divide-edge max-w-5xl mx-auto w-full">
-              {weekDays.map((dayDate) => {
-                const dayIso = formatDateISO(dayDate);
-                const isToday = isSameDay(dayDate, new Date());
-                const dayName = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
-                const monthName = dayDate.toLocaleDateString('en-US', { month: 'long' });
-                const dayNum = dayDate.getDate();
+            <div
+              ref={weekTimelineRef}
+              className="flex-1 overflow-x-auto overflow-y-auto [scrollbar-width:thin] select-none bg-paper"
+            >
+              <div className="inline-block min-w-full">
+                {/* Top Sticky Header: Corner + 24 Hours */}
+                <div className="flex border-b border-edge bg-panel/95 backdrop-blur-xs sticky top-0 z-30">
+                  <div className="sticky left-0 z-40 bg-panel border-r border-edge w-36 sm:w-44 shrink-0 px-3 py-2 flex items-center justify-between shadow-xs">
+                    <span className="text-[11px] font-mono font-semibold text-muted uppercase tracking-wider">
+                      {clt.dayCol || 'Día \\ Horas'}
+                    </span>
+                    <button
+                      onClick={handleScrollToNow}
+                      className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent hover:bg-accent/25 border border-accent/30 transition-colors cursor-pointer"
+                      title="Saltar a la hora actual"
+                    >
+                      Ahora
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-[repeat(24,72px)] shrink-0">
+                    {HOURS.map((h) => {
+                      const isNowHour = currentHour === h;
+                      return (
+                        <div
+                          key={h}
+                          className={`h-9 flex items-center justify-center border-r border-edge/40 text-xs font-mono font-medium transition-colors ${
+                            isNowHour
+                              ? 'text-accent font-bold bg-accent/10 border-b-2 border-b-accent'
+                              : 'text-muted/80'
+                          }`}
+                        >
+                          <span>{String(h).padStart(2, '0')}:00</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
-                // Get events matching this date
-                const dayEvents = filteredEvents
-                  .filter((e) => e.date === dayIso)
-                  .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+                {/* 7 Day Rows */}
+                <div className="divide-y divide-edge">
+                  {weekDays.map((dayDate) => {
+                    const dayIso = formatDateISO(dayDate);
+                    const isToday = isSameDay(dayDate, new Date());
+                    const isEs = (t?.calendar?.todayBtn === 'Hoy') || (clt.todayBtn === 'Hoy');
+                    const dayShortName = dayDate.toLocaleDateString(isEs ? 'es-ES' : 'en-US', { weekday: 'short' });
+                    const dayNum = dayDate.getDate();
+                    const monthName = dayDate.toLocaleDateString(isEs ? 'es-ES' : 'en-US', { month: 'short' });
 
-                return (
-                  <section key={dayIso} className="px-4 py-3 hover:bg-panel/20 transition-colors">
-                    {/* Day Header */}
-                    <div className="flex items-center justify-between mb-2">
-                      <h3
-                        className={`flex items-center gap-2 text-xs font-semibold ${
-                          isToday ? 'text-accent font-bold' : 'text-muted'
-                        }`}
+                    const dayEvents = filteredEvents.filter((e) => e.date === dayIso);
+                    const { placed, rowHeight } = layoutDayEvents(dayEvents, HOUR_WIDTH);
+
+                    return (
+                      <div
+                        key={dayIso}
+                        style={{ minHeight: `${rowHeight}px` }}
+                        className={`flex relative transition-colors ${isToday ? 'bg-accent/[0.02]' : 'hover:bg-panel/10'}`}
                       >
-                        {isToday && (
-                          <span className="rounded-[6px] bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                            {clt.todayBtn}
-                          </span>
-                        )}
-                        <span>
-                          {dayName} {dayNum} {monthName}
-                        </span>
-                      </h3>
-
-                      <span className="text-[11px] font-mono text-muted/60">
-                        {dayEvents.length > 0 ? `${dayEvents.length} events` : ''}
-                      </span>
-                    </div>
-
-                    {/* Ask Marvin Live "Now" Line Indicator for Today */}
-                    {isToday && (
-                      <div className="flex items-center gap-2 px-1 py-1 my-2 animate-fadeIn">
-                        <span className="text-[10px] font-bold tabular-nums text-red-500 font-mono flex items-center gap-1.5 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
-                          <span>{formatCurrentTimeString()}</span>
-                        </span>
-                        <span className="h-px flex-1 bg-gradient-to-r from-red-500 via-red-500/80 to-transparent" />
-                      </div>
-                    )}
-
-                    {/* Event Cards Renderers */}
-                    {dayEvents.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {dayEvents.map((evt) => {
-                          // 1. Check if Private and non-admin: Render Ask Marvin's obfuscated grayscale bar
-                          if (evt.isPrivate && !isAdmin) {
-                            return (
-                              <div
-                                key={evt.id}
-                                className="flex items-center gap-2.5 rounded-[10px] border border-edge px-3 py-2 text-left bg-panel/40 opacity-50 grayscale select-none"
-                              >
-                                <span className="h-7 w-1 shrink-0 rounded-full bg-red-500" />
-                                <span className="text-xs font-mono text-muted tabular-nums shrink-0">
-                                  {evt.time || 'All day'}
+                        {/* Left Sticky Day Cell */}
+                        <div className={`sticky left-0 z-20 bg-panel border-r border-edge w-36 sm:w-44 shrink-0 px-3 py-2.5 flex flex-col justify-center shadow-xs select-none ${
+                          isToday ? 'border-l-4 border-l-accent' : ''
+                        }`}>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className={`text-xs font-semibold capitalize ${isToday ? 'text-accent font-bold' : 'text-ink'}`}>
+                              {dayShortName} {dayNum}
+                            </span>
+                            {isToday && (
+                              <span className="rounded-[5px] bg-accent px-1.5 py-0.2 text-[9.5px] font-bold text-white shadow-xs">
+                                {clt.todayBtn || 'Hoy'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-[10.5px] text-muted font-mono mt-0.5">
+                            <span>{monthName}</span>
+                            <div className="flex items-center gap-1.5">
+                              {dayEvents.length > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-sunken border border-edge/60 text-muted/90">
+                                  {dayEvents.length}
                                 </span>
-                                <div className="min-w-0 flex-1">
-                                  <span className="block truncate text-xs font-medium text-ink">
-                                    Private Event
-                                  </span>
-                                  <span className="block truncate text-[10px] text-muted">
-                                    Private calendar of Rodrigo García
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          // 2. Work Block / Shift Chip (Yellow/Amber Pill)
-                          if (evt.eventType === 'shift') {
-                            return (
-                              <div
-                                key={evt.id}
-                                className="group flex items-center justify-between gap-3 px-3 py-2 rounded-[10px] bg-amber-500/15 border border-amber-500/30 text-xs shadow-v2-sm"
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="font-mono font-semibold text-amber-300 shrink-0">
-                                    {evt.time || '10:00–18:00'}
-                                  </span>
-                                  <span className="text-amber-200 font-medium truncate">
-                                    · {evt.title}
-                                  </span>
-                                  {evt.description && (
-                                    <span className="text-amber-300/80 text-[11px] truncate hidden sm:inline">
-                                      ({evt.description})
-                                    </span>
-                                  )}
-                                </div>
-                                {isAdmin && (
-                                  <button
-                                    onClick={() => onDeleteEvent(evt.id)}
-                                    className="opacity-0 group-hover:opacity-100 p-1 text-amber-400 hover:text-rose-400 cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          }
-
-                          // 3. Absence / Leave Chip (Emerald Pill)
-                          if (evt.eventType === 'absence') {
-                            return (
-                              <div
-                                key={evt.id}
-                                className="group flex items-center justify-between gap-3 px-3 py-1.5 rounded-[10px] bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-300 shadow-v2-sm"
-                              >
-                                <span className="truncate font-medium">
-                                  {evt.title} · Leave & Absence
-                                </span>
-                                {isAdmin && (
-                                  <button
-                                    onClick={() => onDeleteEvent(evt.id)}
-                                    className="opacity-0 group-hover:opacity-100 p-1 text-emerald-400 hover:text-rose-400 cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          }
-
-                          // 4. Standard Milestone / Sprint Card
-                          return (
-                            <div
-                              key={evt.id}
-                              className="group flex items-center justify-between gap-3 p-2.5 rounded-[12px] bg-panel border border-edge hover:border-accent/40 transition-all shadow-v2-sm"
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                {evt.time && (
-                                  <div className="flex items-center gap-1 text-[11px] font-mono font-medium text-slate-300 bg-sunken px-2 py-1 rounded-[8px] border border-edge/60 shrink-0">
-                                    <Clock className="w-3 h-3 text-muted" />
-                                    <span>{evt.time}</span>
-                                  </div>
-                                )}
-
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-[13px] text-ink truncate">
-                                      {evt.title}
-                                    </span>
-                                    <span className="px-2 py-0.2 rounded-full text-[10px] font-medium border font-mono bg-accent/15 border-accent/30 text-accent">
-                                      {evt.category}
-                                    </span>
-                                    {evt.isPrivate && (
-                                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-400 font-mono flex items-center gap-0.5">
-                                        <Lock className="w-2.5 h-2.5" /> Private
-                                      </span>
-                                    )}
-                                  </div>
-                                  {evt.description && (
-                                    <p className="text-[11px] text-muted truncate mt-0.5">
-                                      {evt.description}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
+                              )}
                               {isAdmin && (
                                 <button
-                                  onClick={() => onDeleteEvent(evt.id)}
-                                  className="opacity-0 group-hover:opacity-100 p-1.5 text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-[8px] transition-all cursor-pointer"
-                                  title="Delete event"
+                                  onClick={() => handleCellClick(dayIso, 10)}
+                                  className="p-0.5 rounded text-muted hover:text-accent hover:bg-sunken cursor-pointer transition-colors"
+                                  title="Añadir evento a este día"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Plus className="w-3.5 h-3.5" />
                                 </button>
                               )}
                             </div>
-                          );
-                        })}
+                          </div>
+                        </div>
+
+                        {/* Hours Timeline Track */}
+                        <div
+                          style={{ width: `${24 * HOUR_WIDTH}px`, minHeight: `${rowHeight}px` }}
+                          className="relative shrink-0 select-none"
+                        >
+                          {/* Background Cells */}
+                          <div className="absolute inset-0 grid grid-cols-[repeat(24,72px)] h-full">
+                            {HOURS.map((h) => {
+                              const isCurrentHourSlot = isToday && currentHour === h;
+                              const isNight = h < 7 || h >= 22;
+                              return (
+                                <div
+                                  key={h}
+                                  onClick={() => handleCellClick(dayIso, h)}
+                                  className={`border-r border-edge/30 h-full transition-colors cursor-pointer group/cell ${
+                                    isCurrentHourSlot ? 'bg-accent/5' : isNight ? 'bg-black/15' : 'hover:bg-panel/40'
+                                  }`}
+                                  title={isAdmin ? `Click para añadir evento a las ${String(h).padStart(2, '0')}:00` : undefined}
+                                >
+                                  {isAdmin && (
+                                    <div className="w-full h-full opacity-0 group-hover/cell:opacity-100 flex items-center justify-center pointer-events-none">
+                                      <Plus className="w-3.5 h-3.5 text-accent/50" />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Live Now Line for Today */}
+                          {isToday && (
+                            <div
+                              style={{ left: `${nowPositionLeft}px` }}
+                              className="absolute top-0 bottom-0 z-20 w-0.5 bg-rose-500 pointer-events-none"
+                            >
+                              <div className="w-2.5 h-2.5 rounded-full bg-rose-500 -ml-1 -mt-1 shadow-xs animate-pulse ring-2 ring-rose-500/30" />
+                            </div>
+                          )}
+
+                          {/* Rendered Event Cards */}
+                          {placed.map((item) => renderEventCard(item.evt, item))}
+                        </div>
                       </div>
-                    ) : (
-                      !isToday && (
-                        <p className="text-[11px] text-muted/50 italic px-1 py-0.5">
-                          {clt.noEventsDay}
-                        </p>
-                      )
-                    )}
-                  </section>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
