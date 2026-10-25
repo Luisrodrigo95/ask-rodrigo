@@ -489,3 +489,90 @@ export async function uploadDeveloperFilesHandler(req, res) {
     return res.status(400).json({ error: err.message });
   }
 }
+
+// ---------------------------------------------------------------------------
+// PR Reviews Management Handlers
+// ---------------------------------------------------------------------------
+const PR_REVIEWS_FILE = path.join(path.dirname(new URL(import.meta.url).pathname), '../data/pr_reviews.json');
+
+function loadPRs() {
+  try {
+    if (fs.existsSync(PR_REVIEWS_FILE)) {
+      return JSON.parse(fs.readFileSync(PR_REVIEWS_FILE, 'utf-8'));
+    }
+  } catch (e) {
+    console.error('Error reading pr_reviews.json:', e);
+  }
+  return [];
+}
+
+function savePRs(prs) {
+  try {
+    fs.writeFileSync(PR_REVIEWS_FILE, JSON.stringify(prs, null, 2), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('Error saving pr_reviews.json:', e);
+    return false;
+  }
+}
+
+export function getPRsHandler(req, res) {
+  const prs = loadPRs();
+  return res.json({ success: true, prs });
+}
+
+export function createPRHandler(req, res) {
+  const { title, projectId, branch, baseBranch, description } = req.body;
+  if (!title || !projectId) {
+    return res.status(400).json({ error: 'Título y proyecto son obligatorios.' });
+  }
+
+  const project = getProject(projectId);
+  const prs = loadPRs();
+  const nextNum = prs.length > 0 ? Math.max(...prs.map(p => p.number || 0)) + 1 : 101;
+
+  const newPR = {
+    id: `PR-${nextNum}`,
+    number: nextNum,
+    title: title.trim(),
+    projectId,
+    projectName: project ? project.name : projectId,
+    branch: branch?.trim() || 'feature/new-branch',
+    baseBranch: baseBranch?.trim() || 'master',
+    status: 'open',
+    author: req.user?.name || 'Rodrigo García',
+    authorEmail: req.user?.email || 'contacto@therodrigo.com',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    description: description?.trim() || '',
+    diffStats: { additions: 1, deletions: 0, filesChanged: 1 },
+    reviewers: [{ name: 'Antigravity Reviewer', status: 'pending' }],
+    commentsCount: 0
+  };
+
+  prs.unshift(newPR);
+  savePRs(prs);
+  return res.json({ success: true, pr: newPR, message: 'PR Review creada correctamente.' });
+}
+
+export function updatePRStatusHandler(req, res) {
+  const { id, status } = req.body;
+  const validStatuses = ['open', 'in_review', 'approved', 'merged'];
+  if (!id || !validStatuses.includes(status)) {
+    return res.status(400).json({ error: 'ID y estado válido requeridos.' });
+  }
+
+  const prs = loadPRs();
+  const pr = prs.find(p => p.id === id);
+  if (!pr) {
+    return res.status(404).json({ error: 'PR no encontrada.' });
+  }
+
+  pr.status = status;
+  pr.updatedAt = new Date().toISOString();
+  if (status === 'approved') {
+    pr.reviewers = pr.reviewers.map(r => ({ ...r, status: 'approved' }));
+  }
+  savePRs(prs);
+  return res.json({ success: true, pr, message: `Estado de ${id} actualizado a ${status}.` });
+}

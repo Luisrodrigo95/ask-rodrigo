@@ -623,4 +623,41 @@ export async function uploadDeveloperFiles(projectId, destinationPath, files) {
   return await response.json();
 }
 
+export async function fetchDeveloperPRs() {
+  const response = await fetch(`${API_BASE}/developer/prs`, {
+    headers: getAuthHeaders()
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al obtener PR reviews');
+  }
+  return await response.json();
+}
+
+export async function createDeveloperPR(data) {
+  const response = await fetch(`${API_BASE}/developer/prs`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al crear PR review');
+  }
+  return await response.json();
+}
+
+export async function updateDeveloperPRStatus(id, status) {
+  const response = await fetch(`${API_BASE}/developer/prs/status`, {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ id, status })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al actualizar estado de PR');
+  }
+  return await response.json();
+}
+
 

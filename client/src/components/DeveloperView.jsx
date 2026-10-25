@@ -33,8 +33,11 @@ import {
   Copy,
   Clipboard,
   Layers,
-  Sparkles
+  Sparkles,
+  PanelLeftOpen,
+  GitPullRequest
 } from 'lucide-react';
+import { DeveloperDrawer } from './DeveloperDrawer.jsx';
 import {
   fetchDeveloperProjects,
   fetchDeveloperTree,
@@ -43,7 +46,10 @@ import {
   createDeveloperItem,
   deleteDeveloperItem,
   renameDeveloperItem,
-  uploadDeveloperFiles
+  uploadDeveloperFiles,
+  fetchDeveloperPRs,
+  createDeveloperPR,
+  updateDeveloperPRStatus
 } from '../services/api.js';
 
 // Language resolver based on extension
@@ -158,6 +164,11 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
   const [filterQuery, setFilterQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({});
 
+  // Developer Workspace Drawer (Projects & PR Reviews)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(() => localStorage.getItem('ask_rodrigo_dev_drawer') !== 'false');
+  const [prs, setPrs] = useState([]);
+  const [prsLoading, setPrsLoading] = useState(false);
+
   // Editor Tabs state: [{ path, name, content, initialContent, isDirty, language, isBinary }]
   const [openTabs, setOpenTabs] = useState([]);
   const [activeTabPath, setActiveTabPath] = useState(null);
@@ -202,6 +213,43 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
     } catch (err) {
       showToast('Permiso bloqueado por el navegador. Haz clic en el ícono de ajustes/candado en la barra de URL y pon Portapapeles en "Permitir".', 'error');
     }
+  };
+
+  const handleToggleDrawer = () => {
+    setIsDrawerOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('ask_rodrigo_dev_drawer', String(next));
+      return next;
+    });
+  };
+
+  const loadPRs = useCallback(async () => {
+    try {
+      setPrsLoading(true);
+      const res = await fetchDeveloperPRs();
+      setPrs(res.prs || []);
+    } catch (err) {
+      console.warn('Error cargando PR reviews:', err);
+    } finally {
+      setPrsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPRs();
+  }, [loadPRs]);
+
+  const handleCreatePR = async (prData) => {
+    const res = await createDeveloperPR(prData);
+    showToast('Revisión de código creada correctamente', 'success');
+    loadPRs();
+    return res;
+  };
+
+  const handleUpdatePRStatus = async (id, status) => {
+    await updateDeveloperPRStatus(id, status);
+    showToast(`Estado de ${id} actualizado a ${status}`, 'success');
+    loadPRs();
   };
 
   // 1. Load Projects on Mount
@@ -529,7 +577,7 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
   const vsCodeIframeUrl = `/vscode/?folder=${encodeURIComponent(selectedProjectObj?.path || '/var/www/my-portfolio')}`;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-paper relative overflow-hidden select-text font-sans">
+    <div className="flex-1 flex h-full bg-paper relative overflow-hidden select-text font-sans">
       <input
         type="file"
         ref={fileInputRef}
@@ -538,35 +586,62 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
         className="hidden"
       />
 
-      {/* Top Header / Project Switcher, Mode Toggles & Toolbar */}
-      <header className="px-3.5 py-2.5 border-b border-edge bg-panel/80 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 shrink-0">
-        {/* Left: Project Selector */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-accent/15 text-accent border border-accent/30 shadow-v2-sm">
-            <Code2 className="w-4 h-4" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-muted">
-                Proyecto:
-              </span>
-              <select
-                value={selectedProjectId}
-                onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="bg-sunken border border-edge rounded-[8px] px-2.5 py-1 text-xs font-semibold text-ink focus:border-accent focus:outline-none cursor-pointer"
+      {/* 1. Developer Extra Sidebar Drawer (Projects & PR Reviews) */}
+      <DeveloperDrawer
+        isOpen={isDrawerOpen}
+        onClose={handleToggleDrawer}
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        onSelectProject={(projId) => setSelectedProjectId(projId)}
+        prs={prs}
+        onRefreshPRs={loadPRs}
+        onCreatePR={handleCreatePR}
+        onUpdatePRStatus={handleUpdatePRStatus}
+        canEdit={canEdit}
+      />
+
+      {/* 2. Main Workstation Area (Header + IDE) */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+        {/* Top Header / Project Switcher, Mode Toggles & Toolbar */}
+        <header className="px-3.5 py-2.5 border-b border-edge bg-panel/80 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 shrink-0">
+          {/* Left: Open Drawer Trigger + Active Project Badge */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            {!isDrawerOpen && (
+              <button
+                onClick={handleToggleDrawer}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] bg-sunken border border-edge text-xs font-medium text-ink hover:text-accent hover:border-accent/40 transition-all cursor-pointer shadow-v2-sm"
+                title="Abrir panel de Proyectos y PR Reviews"
               >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} {p.port ? `(:${p.port})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <span className="text-[10px] font-mono text-muted/80 truncate mt-0.5">
-              {selectedProjectObj?.path || '/var/www/...'}
-            </span>
+                <PanelLeftOpen className="w-3.5 h-3.5 text-accent" />
+                <span className="hidden sm:inline font-semibold">Proyectos & PRs</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleToggleDrawer}
+              className="flex items-center gap-2 text-left p-1 rounded-[8px] hover:bg-sunken/60 transition-colors cursor-pointer min-w-0 group"
+              title="Cambiar de proyecto en el panel lateral"
+            >
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-accent/15 text-accent border border-accent/30 shadow-v2-sm group-hover:bg-accent/25">
+                <Code2 className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-ink truncate group-hover:text-accent transition-colors">
+                    {selectedProjectObj?.name || 'Workspace'}
+                  </span>
+                  {selectedProjectObj?.port && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-sunken border border-emerald-500/20 text-emerald-400 font-semibold">
+                      :{selectedProjectObj.port}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] font-mono text-muted/80 truncate mt-0.5">
+                  {selectedProjectObj?.path || '/var/www/...'}
+                </span>
+              </div>
+            </button>
           </div>
-        </div>
 
         {/* Center: IDE Mode Toggle (VS Code Full with Extension Marketplace vs Monaco Quick Editor) */}
         {canEdit && (
@@ -976,7 +1051,7 @@ export function DeveloperView({ currentUser, t, isDockVisible = true, onToggleDo
           </main>
         </div>
       )}
-
+      </div>
 
       {/* Action Modals */}
       {modalState.isOpen && (

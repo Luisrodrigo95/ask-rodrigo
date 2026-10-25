@@ -1,0 +1,147 @@
+[
+  {
+    "id": "PR-106",
+    "number": 106,
+    "title": "feat(developer): projects & PR reviews sidebar drawer with collapsible navigation",
+    "projectId": "askrodrigo",
+    "projectName": "Ask-Rodrigo",
+    "branch": "feature/developer-drawer",
+    "baseBranch": "master",
+    "status": "in_review",
+    "author": "Rodrigo García",
+    "authorEmail": "contacto@therodrigo.com",
+    "createdAt": "2026-10-24T21:10:00Z",
+    "updatedAt": "2026-10-24T21:12:00Z",
+    "description": "Añade un sidebar drawer a la derecha del PrimaryRail con listado enriquecido de proyectos, sección de PR reviews y botón de colapso rápido.",
+    "diffStats": {
+      "additions": 185,
+      "deletions": 20,
+      "filesChanged": 4
+    },
+    "reviewers": [
+      { "name": "Antigravity Reviewer", "status": "approved" },
+      { "name": "Eduardo Larios", "status": "pending" }
+    ],
+    "commentsCount": 3
+  },
+  {
+    "id": "PR-105",
+    "number": 105,
+    "title": "fix(clipboard): fix permissions-policy allow syntax, add clipboard sync trigger, and flush code-server cache",
+    "projectId": "askrodrigo",
+    "projectName": "Ask-Rodrigo",
+    "branch": "fix/clipboard-sync",
+    "baseBranch": "master",
+    "status": "merged",
+    "author": "Rodrigo García",
+    "authorEmail": "contacto@therodrigo.com",
+    "createdAt": "2026-10-24T21:00:00Z",
+    "updatedAt": "2026-10-24T21:05:00Z",
+    "description": "Corrige el bloqueo del portapapeles en el iframe de VS Code e introduce sincronizador de portapapeles del navegador.",
+    "diffStats": {
+      "additions": 26,
+      "deletions": 1,
+      "filesChanged": 1
+    },
+    "reviewers": [
+      { "name": "Antigravity Reviewer", "status": "approved" }
+    ],
+    "commentsCount": 1
+  },
+  {
+    "id": "PR-104",
+    "number": 104,
+    "title": "refactor(i18n): translate residual German labels to English in UI components",
+    "projectId": "askrodrigo",
+    "projectName": "Ask-Rodrigo",
+    "branch": "refactor/i18n-cleanup",
+    "baseBranch": "master",
+    "status": "merged",
+    "author": "Rodrigo García",
+    "authorEmail": "contacto@therodrigo.com",
+    "createdAt": "2026-10-24T20:55:00Z",
+    "updatedAt": "2026-10-24T20:58:00Z",
+    "description": "Limpieza exhaustiva de etiquetas heredadas de Ask Marvin a inglés estándar.",
+    "diffStats": {
+      "additions": 15,
+      "deletions": 15,
+      "filesChanged": 4
+    },
+    "reviewers": [
+      { "name": "Antigravity Reviewer", "status": "approved" }
+    ],
+    "commentsCount": 0
+  },
+  {
+    "id": "PR-103",
+    "number": 103,
+    "title": "feat(ui): add ability to toggle and collapse Schnellzugriff dock in VS Code view",
+    "projectId": "askrodrigo",
+    "projectName": "Ask-Rodrigo",
+    "branch": "feat/dock-toggle",
+    "baseBranch": "master",
+    "status": "merged",
+    "author": "Rodrigo García",
+    "authorEmail": "contacto@therodrigo.com",
+    "createdAt": "2026-10-24T20:45:00Z",
+    "updatedAt": "2026-10-24T20:53:00Z",
+    "description": "Permite colapsar el dock flotante a una pestaña lateral y ocultarlo con botón desde la vista de VS Code.",
+    "diffStats": {
+      "additions": 105,
+      "deletions": 7,
+      "filesChanged": 3
+    },
+    "reviewers": [
+      { "name": "Antigravity Reviewer", "status": "approved" }
+    ],
+    "commentsCount": 2
+  },
+  {
+    "id": "PR-102",
+    "number": 102,
+    "title": "feat(developer): add dual IDE mode with full VS Code Server and Monaco quick editor",
+    "projectId": "askrodrigo",
+    "projectName": "Ask-Rodrigo",
+    "branch": "feat/code-server-suite",
+    "baseBranch": "master",
+    "status": "approved",
+    "author": "Rodrigo García",
+    "authorEmail": "contacto@therodrigo.com",
+    "createdAt": "2026-10-24T19:30:00Z",
+    "updatedAt": "2026-10-24T20:15:00Z",
+    "description": "Implementa code-server oficial en puerto 8085 con Marketplace de Microsoft y terminal integrada.",
+    "diffStats": {
+      "additions": 430,
+      "deletions": 12,
+      "filesChanged": 5
+    },
+    "reviewers": [
+      { "name": "Antigravity Reviewer", "status": "approved" }
+    ],
+    "commentsCount": 5
+  },
+  {
+    "id": "PR-101",
+    "number": 101,
+    "title": "security(rbac): add Eduardo Larios with read-only project access",
+    "projectId": "askrodrigo",
+    "projectName": "Ask-Rodrigo",
+    "branch": "security/collab-rbac",
+    "baseBranch": "master",
+    "status": "merged",
+    "author": "Rodrigo García",
+    "authorEmail": "contacto@therodrigo.com",
+    "createdAt": "2026-10-24T18:40:00Z",
+    "updatedAt": "2026-10-24T18:45:00Z",
+    "description": "Registro de colaborador con permisos canEditProjects en falso hasta autorización explícita.",
+    "diffStats": {
+      "additions": 12,
+      "deletions": 2,
+      "filesChanged": 2
+    },
+    "reviewers": [
+      { "name": "Antigravity Reviewer", "status": "approved" }
+    ],
+    "commentsCount": 1
+  }
+]

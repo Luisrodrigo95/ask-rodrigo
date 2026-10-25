@@ -51,7 +51,10 @@ import {
   deleteItemHandler,
   renameItemHandler,
   developerUploadMiddleware,
-  uploadDeveloperFilesHandler
+  uploadDeveloperFilesHandler,
+  getPRsHandler,
+  createPRHandler,
+  updatePRStatusHandler
 } from '../controllers/developerController.js';
 import {
   getUsageHandler,
@@ -137,6 +140,11 @@ router.post('/developer/create', requireProjectEditor, createItemHandler);
 router.delete('/developer/item', requireProjectEditor, deleteItemHandler);
 router.post('/developer/rename', requireProjectEditor, renameItemHandler);
 router.post('/developer/upload', requireProjectEditor, developerUploadMiddleware, uploadDeveloperFilesHandler);
+
+// PR Reviews
+router.get('/developer/prs', requireAdmin, getPRsHandler);
+router.post('/developer/prs', requireAdmin, createPRHandler);
+router.post('/developer/prs/status', requireAdmin, updatePRStatusHandler);
 
 export default router;
 
