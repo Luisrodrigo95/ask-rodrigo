@@ -153,8 +153,7 @@ export function ChatView({
   const [isDragging, setIsDragging] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
-  const [dropdownPos, setDropdownPos] = useState({ top: 60, right: 16 });
-  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 640 : false));
+  const [dropdownPos, setDropdownPos] = useState({ top: 60, right: 16, width: 320 });
   const modelDropdownRef = useRef(null);
   const modelButtonRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -167,17 +166,19 @@ export function ChatView({
 
   const updateDropdownPos = () => {
     if (typeof window === 'undefined') return;
-    setIsMobile(window.innerWidth < 640);
     if (modelButtonRef.current) {
       const rect = modelButtonRef.current.getBoundingClientRect();
-      const popoverWidth = 320;
-      const popoverHeight = 440;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const top = (spaceBelow < popoverHeight && rect.top > popoverHeight)
-        ? Math.max(12, rect.top - popoverHeight - 8)
-        : Math.max(12, Math.min(rect.bottom + 8, window.innerHeight - popoverHeight - 12));
-      const right = Math.max(12, Math.min(window.innerWidth - rect.right, window.innerWidth - popoverWidth - 12));
-      setDropdownPos({ top, right });
+      const popoverWidth = Math.min(320, window.innerWidth - 16);
+      
+      // Top: place directly under the button (+6px margin)
+      const top = Math.max(8, rect.bottom + 6);
+
+      // Right: align to the right edge of the button, clamped within viewport bounds
+      const idealRight = window.innerWidth - rect.right;
+      const maxRight = Math.max(8, window.innerWidth - popoverWidth - 8);
+      const right = Math.max(8, Math.min(idealRight, maxRight));
+
+      setDropdownPos({ top, right, width: popoverWidth });
     }
   };
 
@@ -510,18 +511,15 @@ export function ChatView({
                   <div
                     ref={modelDropdownRef}
                     style={
-                      !isMobile && dropdownPos
+                      dropdownPos
                         ? {
                             top: `${dropdownPos.top}px`,
                             right: `${dropdownPos.right}px`,
+                            width: `${dropdownPos.width || 320}px`,
                           }
                         : undefined
                     }
-                    className={`fixed z-[9999] rounded-2xl bg-panel/95 border border-edge shadow-2xl backdrop-blur-xl animate-fadeIn space-y-3 text-ink select-none max-h-[85vh] overflow-y-auto [scrollbar-width:thin] ${
-                      isMobile
-                        ? 'inset-x-4 top-1/2 -translate-y-1/2 max-w-[360px] mx-auto p-4'
-                        : 'w-80 p-3.5'
-                    }`}
+                    className="fixed z-[9999] rounded-2xl bg-panel/95 border border-edge shadow-2xl backdrop-blur-xl animate-fadeIn space-y-3 text-ink select-none p-3.5 max-h-[calc(100dvh-90px)] overflow-y-auto [scrollbar-width:thin]"
                   >
                     <div className="flex items-center justify-between pb-2 border-b border-edge/60">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
