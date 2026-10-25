@@ -13,6 +13,7 @@ import {
   Settings
 } from 'lucide-react';
 import { fetchAuthConfig } from '../services/api';
+import rodrigoIcon from '../assets/rodrigo-icon.png';
 
 export function LoginModal({ 
   isOpen, 
@@ -192,8 +193,8 @@ export function LoginModal({
 
         {/* Header */}
         <div className="p-6 pb-4 border-b border-slate-800/80 text-center relative overflow-hidden bg-gradient-to-b from-slate-800/40 to-transparent">
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-teal-500 to-cyan-500 flex items-center justify-center text-slate-950 shadow-lg shadow-teal-500/20 mb-3">
-            <Terminal className="w-6 h-6" />
+          <div className="w-14 h-14 mx-auto rounded-2xl overflow-hidden shadow-lg ring-2 ring-teal-500/30 mb-3 p-0.5 bg-slate-800">
+            <img src={rodrigoIcon} alt="Rodrigo" className="w-full h-full object-cover rounded-[14px]" />
           </div>
           <h2 className="text-xl font-bold text-white tracking-tight">
             {lt.title}

@@ -18,6 +18,7 @@ import {
   LogOut,
   FileText
 } from 'lucide-react';
+import rodrigoIcon from '../assets/rodrigo-icon.png';
 
 export function PrimaryRail({
   activeTab,
@@ -137,10 +138,10 @@ export function PrimaryRail({
       <div className={`mb-3 flex items-center gap-2.5 ${isCollapsed ? 'justify-center px-0' : 'px-1'}`}>
         <button
           onClick={() => onSelectTab('chat')}
-          className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-[#d9714d] to-[#b4532f] text-[15px] font-bold text-white shadow-[0_2px_8px_rgba(201,100,66,.35)] cursor-pointer hover:opacity-90 transition-opacity"
+          className="relative h-[34px] w-[34px] shrink-0 overflow-hidden rounded-[10px] ring-1 ring-white/10 shadow-[0_2px_8px_rgba(0,0,0,.35)] cursor-pointer hover:opacity-90 hover:ring-accent/50 transition-all"
           title="Ask Rodrigo"
         >
-          R
+          <img src={rodrigoIcon} alt="Ask Rodrigo" className="w-full h-full object-cover" />
         </button>
         {!isCollapsed && (
           <div className="flex min-w-0 flex-1 flex-col">

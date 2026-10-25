@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, LogOut, MessageSquare, Settings } from 'lucide-react';
 import { PrimaryRail } from './components/PrimaryRail';
 import { SessionDrawer } from './components/SessionDrawer';
@@ -9,6 +9,7 @@ import { MetricsView } from './components/MetricsView';
 import { CalendarView } from './components/CalendarView';
 import { DeveloperView } from './components/DeveloperView';
 import { ProfileModal } from './components/ProfileModal';
+import rodrigoIcon from './assets/rodrigo-icon.png';
 
 import { NotesModal } from './components/NotesModal';
 import { LoginModal } from './components/LoginModal';
@@ -96,6 +97,22 @@ export function App() {
   const [speechEnabled, setSpeechEnabled] = useState(() => localStorage.getItem('ask_rodrigo_speech') === 'true');
   const [speechRate, setSpeechRate] = useState(() => parseFloat(localStorage.getItem('ask_rodrigo_speech_rate')) || 1.0);
   const [googleClientId, setGoogleClientId] = useState(() => localStorage.getItem('ask_rodrigo_google_client_id') || '');
+
+  // Verbose Mode (inspection of executed commands & tools)
+  const [verboseMode, setVerboseMode] = useState(() => {
+    const saved = localStorage.getItem('ask_rodrigo_verbose_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [streamingTools, setStreamingTools] = useState({}); // { [convKey]: ToolItem[] }
+  const streamingToolsRef = useRef({});
+
+  const handleToggleVerboseMode = () => {
+    setVerboseMode((prev) => {
+      const next = !prev;
+      localStorage.setItem('ask_rodrigo_verbose_mode', String(next));
+      return next;
+    });
+  };
 
   // 1. Initial Session Validation & Data Load
   useEffect(() => {
@@ -445,6 +462,8 @@ export function App() {
 
     setGeneratingMap((prev) => ({ ...prev, [startKey]: true }));
     setStreamingReplies((prev) => ({ ...prev, [startKey]: '' }));
+    setStreamingTools((prev) => ({ ...prev, [startKey]: [] }));
+    streamingToolsRef.current[startKey] = [];
     setStreamingStatuses((prev) => ({
       ...prev,
       [startKey]:
@@ -498,6 +517,14 @@ export function App() {
                 delete next[oldKey];
                 return next;
               });
+              setStreamingTools((prev) => {
+                const next = { ...prev, [assignedId]: prev[oldKey] || [] };
+                delete next[oldKey];
+                return next;
+              });
+              streamingToolsRef.current[assignedId] = streamingToolsRef.current[oldKey] || [];
+              delete streamingToolsRef.current[oldKey];
+
               setConversationsMessages((prev) => {
                 const next = { ...prev, [assignedId]: prev[oldKey] || [] };
                 delete next[oldKey];
@@ -534,9 +561,34 @@ export function App() {
             pendingDeltaTimer = setTimeout(flushDelta, 50);
           }
         },
+        onTool: (toolEvent) => {
+          const list = streamingToolsRef.current[trackedKey] ? [...streamingToolsRef.current[trackedKey]] : [];
+          const toolItem = {
+            stepIndex: toolEvent.stepIndex,
+            toolName: toolEvent.toolName || (toolEvent.toolInfo && toolEvent.toolInfo.name),
+            parameters: (toolEvent.toolInfo && toolEvent.toolInfo.parameters) || {},
+            output: (toolEvent.toolInfo && toolEvent.toolInfo.output) !== undefined ? toolEvent.toolInfo.output : null,
+            duration: toolEvent.duration,
+            state: toolEvent.state || 'DONE',
+            time: new Date().toISOString()
+          };
+          const existingIdx = list.findIndex(
+            (t) => (toolEvent.stepIndex !== undefined && t.stepIndex === toolEvent.stepIndex) ||
+                   (t.toolName === toolItem.toolName && t.state === 'ACTIVE')
+          );
+          if (existingIdx >= 0) {
+            list[existingIdx] = { ...list[existingIdx], ...toolItem };
+          } else {
+            list.push(toolItem);
+          }
+          streamingToolsRef.current[trackedKey] = list;
+          setStreamingTools((prev) => ({ ...prev, [trackedKey]: list }));
+        },
         onDone: (meta) => {
           if (pendingDeltaTimer) clearTimeout(pendingDeltaTimer);
           const finalReply = accumulatedText || 'Completed.';
+          const toolsForThisTurn = streamingToolsRef.current[trackedKey] || [];
+
           setGeneratingMap((prev) => {
             const next = { ...prev };
             delete next[trackedKey];
@@ -552,11 +604,18 @@ export function App() {
             delete next[trackedKey];
             return next;
           });
+          setStreamingTools((prev) => {
+            const next = { ...prev };
+            delete next[trackedKey];
+            return next;
+          });
+          delete streamingToolsRef.current[trackedKey];
 
           const assistantMsg = {
             role: 'assistant',
             content: finalReply,
-            time: new Date().toISOString()
+            time: new Date().toISOString(),
+            tools: toolsForThisTurn.length > 0 ? toolsForThisTurn : undefined
           };
 
           setConversationsMessages((prev) => ({
@@ -668,9 +727,10 @@ export function App() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('chat')}
-              className="grid h-7 w-7 place-items-center rounded-[8px] bg-gradient-to-br from-[#d9714d] to-[#b4532f] text-xs font-bold text-white shadow-sm shrink-0"
+              className="relative h-7 w-7 overflow-hidden rounded-[8px] ring-1 ring-white/10 shadow-sm shrink-0 cursor-pointer hover:opacity-90"
+              title="Ask Rodrigo"
             >
-              R
+              <img src={rodrigoIcon} alt="Ask Rodrigo" className="w-full h-full object-cover" />
             </button>
             <span className="text-sm font-semibold text-ink truncate">Ask Rodrigo</span>
             {activeTab === 'chat' && (
@@ -767,6 +827,9 @@ export function App() {
                 streamingReply={streamingReplies[activeConversationId || 'new'] || ''}
                 streamingStatus={streamingStatuses[activeConversationId || 'new'] || ''}
                 isGenerating={Boolean(generatingMap[activeConversationId || 'new'])}
+                verboseMode={verboseMode}
+                onToggleVerboseMode={handleToggleVerboseMode}
+                streamingTools={streamingTools[activeConversationId || 'new'] || []}
                 onSendMessage={handleSendMessage}
                 suggestions={suggestions}
                 onSelectSuggestion={(sug) => handleSendMessage(sug, activeWorkspace)}
@@ -879,6 +942,8 @@ export function App() {
         onChangeSpeechRate={handleChangeSpeechRate}
         googleClientId={googleClientId}
         onSaveGoogleClientId={handleSaveGoogleClientId}
+        verboseMode={verboseMode}
+        onToggleVerboseMode={handleToggleVerboseMode}
         health={health}
         currentUser={currentUser}
         t={t}

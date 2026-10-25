@@ -16,7 +16,8 @@ import {
   Lock,
   Unlock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Terminal
 } from 'lucide-react';
 import {
   fetchUsers,
@@ -36,6 +37,8 @@ export function SettingsModal({
   onChangeSpeechRate,
   googleClientId,
   onSaveGoogleClientId,
+  verboseMode,
+  onToggleVerboseMode,
   health,
   currentUser,
   t
@@ -266,7 +269,44 @@ export function SettingsModal({
 
           <div className="border-t border-slate-800/80"></div>
 
-          {/* 3. Google OAuth Client ID Configuration */}
+          {/* 3. Verbose Mode: Tools & Commands Execution */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-teal-400 text-xs font-semibold uppercase tracking-wider font-mono">
+              <Terminal className="w-4 h-4" />
+              <span>{st.verboseSection}</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              {st.verboseDesc}
+            </p>
+
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+              <div>
+                <span className="text-xs text-slate-300 font-medium block">
+                  {st.verboseEnableLabel}
+                </span>
+                <span className="text-[11px] text-slate-500 block mt-0.5">
+                  {st.verboseEnableSub}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={onToggleVerboseMode}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                  verboseMode ? 'bg-teal-600' : 'bg-slate-800'
+                }`}
+              >
+                <div
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                    verboseMode ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-800/80"></div>
+
+          {/* 4. Google OAuth Client ID Configuration */}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-teal-400 text-xs font-semibold uppercase tracking-wider font-mono">
               <Shield className="w-4 h-4" />

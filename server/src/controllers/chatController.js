@@ -190,6 +190,9 @@ export async function chatStreamHandler(req, res) {
       },
       onDelta: (textChunk) => {
         sendEvent('delta', { text: textChunk });
+      },
+      onToolUpdate: (toolEvent) => {
+        sendEvent('tool', toolEvent);
       }
     });
 

@@ -151,7 +151,7 @@ export async function sendChatMessage(message, conversationId = null, engine = '
  * Connects to the SSE stream for real-time token-by-token streaming
  */
 export function streamChatMessage(message, conversationId, callbacks, workspace = 'normal') {
-  const { onInit, onDelta, onDone, onError, onStatus } = callbacks;
+  const { onInit, onDelta, onDone, onError, onStatus, onTool } = callbacks;
 
   const url = `${API_BASE}/chat/stream`;
   const controller = new AbortController();
@@ -196,6 +196,7 @@ export function streamChatMessage(message, conversationId, callbacks, workspace 
                 receivedAnyDelta = true;
                 onDelta(data.text);
               }
+              if (eventType === 'tool' && onTool) onTool(data);
               if (eventType === 'done' && onDone) onDone(data);
               if (eventType === 'error' && onError) onError(data.error);
             } catch (err) {

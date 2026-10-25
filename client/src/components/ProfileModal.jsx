@@ -11,6 +11,7 @@ import {
   Cpu,
   ShieldCheck
 } from 'lucide-react';
+import rodrigoIcon from '../assets/rodrigo-icon.png';
 
 // Localized content for Spanish display when language is 'es'
 const SPANISH_CONTENT = {
@@ -94,9 +95,9 @@ export function ProfileModal({ isOpen, onClose, profileData, currentLanguage = '
       >
         {/* Header */}
         <div className="p-4 border-b border-edge flex items-center justify-between bg-panel/70">
-          <div className="flex items-center gap-2 text-ink font-bold text-sm">
-            <div className="w-7 h-7 rounded-lg bg-accent/15 flex items-center justify-center text-accent">
-              <User className="w-4 h-4" />
+          <div className="flex items-center gap-2.5 text-ink font-bold text-sm">
+            <div className="w-7 h-7 rounded-lg overflow-hidden ring-1 ring-edge shrink-0">
+              <img src={rodrigoIcon} alt={profile?.name || 'Luis Rodrigo García'} className="w-full h-full object-cover" />
             </div>
             <span>{pm.title} {profile?.name || 'Luis Rodrigo García'}</span>
           </div>
@@ -113,12 +114,19 @@ export function ProfileModal({ isOpen, onClose, profileData, currentLanguage = '
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6 text-xs text-ink/90 [scrollbar-width:thin]">
           {/* Bio & Education */}
-          <div className="space-y-2 p-3.5 rounded-xl bg-panel/60 border border-edge">
-            <h3 className="font-semibold uppercase tracking-wider text-[11px] font-mono text-accent">
-              {pm.executiveSummary}
-            </h3>
-            <p className="leading-relaxed text-[12.5px] text-ink/80">{resolvedBio}</p>
-            <div className="flex items-center gap-2 pt-1.5 text-muted text-[11.5px] border-t border-edge/50">
+          <div className="space-y-3 p-4 rounded-xl bg-panel/60 border border-edge">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+              <div className="w-20 h-20 shrink-0 rounded-2xl overflow-hidden ring-1 ring-edge shadow-md bg-paper p-0.5">
+                <img src={rodrigoIcon} alt={profile?.name || 'Luis Rodrigo García'} className="w-full h-full object-cover rounded-[14px]" />
+              </div>
+              <div className="space-y-2 flex-1 text-center sm:text-left">
+                <h3 className="font-semibold uppercase tracking-wider text-[11px] font-mono text-accent">
+                  {pm.executiveSummary}
+                </h3>
+                <p className="leading-relaxed text-[12.5px] text-ink/80">{resolvedBio}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-2 text-muted text-[11.5px] border-t border-edge/50">
               <GraduationCap className="w-4 h-4 text-accent shrink-0" />
               <span>{resolvedDegree} — {resolvedInstitution}</span>
             </div>

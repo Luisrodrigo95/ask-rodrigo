@@ -27,6 +27,8 @@ import {
 import { marked } from 'marked';
 import { uploadAdminFile } from '../services/api.js';
 import { UsageCounter } from './UsageCounter.jsx';
+import { ToolActionItem } from './ToolActionItem.jsx';
+import rodrigoIcon from '../assets/rodrigo-icon.png';
 
 function formatFileSize(bytes) {
   if (!bytes || bytes === 0) return '0 B';
@@ -119,6 +121,9 @@ export function ChatView({
   onToggleDrawer,
   isSubagentsOpen,
   onToggleSubagents,
+  verboseMode = false,
+  onToggleVerboseMode,
+  streamingTools = [],
   t
 }) {
   const [inputText, setInputText] = useState('');
@@ -390,10 +395,31 @@ export function ChatView({
           </div>
         </div>
 
-        {/* Right: AI Usage Counter & Subagent Inspector Toggle */}
+        {/* Right: AI Usage Counter & Subagent Inspector Toggle & Verbose Mode */}
         <div className="flex items-center gap-2">
-          {/* Circular 5-hour quota counter & popover (placed immediately to the left of Inspector) */}
+          {/* Circular 5-hour quota counter & popover */}
           <UsageCounter currentUser={currentUser} t={t} />
+
+          {/* Verbose Mode Quick Toggle */}
+          {onToggleVerboseMode && (
+            <button
+              onClick={onToggleVerboseMode}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[10px] text-xs font-mono font-medium transition-all border cursor-pointer ${
+                verboseMode
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-v2-sm'
+                  : 'bg-sunken border-edge text-muted hover:text-ink hover:border-edge'
+              }`}
+              title={verboseMode ? 'Modo Verboso Activado (Clic para desactivar)' : 'Modo Verboso Desactivado (Clic para ver comandos y herramientas)'}
+            >
+              <Terminal className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{ct.verboseBadge || 'Verbose'}</span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                  verboseMode ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-muted/40'
+                }`}
+              />
+            </button>
+          )}
 
           {isAdmin && onToggleSubagents && (
             <button
@@ -450,12 +476,12 @@ export function ChatView({
       >
         {messages.length === 0 && !streamingReply ? (
           <div className="max-w-2xl mx-auto py-10 text-center space-y-4">
-            <div className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center shadow-v2-md ${
-              isAdmin 
-                ? 'bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 text-emerald-400' 
-                : 'bg-gradient-to-tr from-[#d9714d]/20 to-[#b4532f]/20 border border-[#d9714d]/30 text-[#d9714d]'
-            }`}>
-              {isAdmin ? <Terminal className="w-7 h-7" /> : <Sparkles className="w-7 h-7" />}
+            <div className="relative w-16 h-16 mx-auto rounded-2xl p-0.5 bg-gradient-to-tr from-accent/40 via-teal-500/30 to-slate-700/50 shadow-v2-md ring-1 ring-edge">
+              <img src={rodrigoIcon} alt="Rodrigo" className="w-full h-full object-cover rounded-[14px]" />
+              <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5">
+                <span className={`pulse-beacon absolute inline-flex h-full w-full rounded-full opacity-75 ${isAdmin ? 'bg-emerald-400' : 'bg-teal-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-3.5 w-3.5 border-2 border-paper ${isAdmin ? 'bg-emerald-500' : 'bg-teal-500'}`}></span>
+              </span>
             </div>
 
             <div>
@@ -495,12 +521,8 @@ export function ChatView({
                 className={`flex gap-2.5 sm:gap-3 max-w-4xl mx-auto w-full min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 {!isUser && (
-                  <div className={`w-8 h-8 rounded-[10px] flex items-center justify-center shrink-0 mt-0.5 shadow-v2-sm border ${
-                    isAdmin 
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-                      : 'bg-accent/10 border-accent/30 text-accent'
-                  }`}>
-                    {isAdmin ? <Terminal className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                  <div className="w-8 h-8 rounded-[10px] overflow-hidden shrink-0 mt-0.5 shadow-v2-sm border border-edge ring-1 ring-white/5">
+                    <img src={rodrigoIcon} alt="Rodrigo" className="w-full h-full object-cover" />
                   </div>
                 )}
 
@@ -515,10 +537,21 @@ export function ChatView({
                     renderUserMessage(msg.content)
                   ) : (
                     <div className="min-w-0 w-full">
-                      <div
-                        className="prose prose-invert prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] prose-pre:bg-sunken prose-pre:border prose-pre:border-edge prose-pre:rounded-[10px] prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:whitespace-pre prose-code:break-words prose-table:block prose-table:max-w-full prose-table:overflow-x-auto prose-a:text-accent prose-a:break-all"
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                      />
+                      {/* Verbose Tool Actions (Collapsible items, minimized by default) */}
+                      {verboseMode && msg.tools && msg.tools.length > 0 && (
+                        <div className="space-y-1 mb-2.5">
+                          {msg.tools.map((tool, tIdx) => (
+                            <ToolActionItem key={tIdx} tool={tool} ct={ct} />
+                          ))}
+                        </div>
+                      )}
+
+                      {msg.content ? (
+                        <div
+                          className="prose prose-invert prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] prose-pre:bg-sunken prose-pre:border prose-pre:border-edge prose-pre:rounded-[10px] prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:whitespace-pre prose-code:break-words prose-table:block prose-table:max-w-full prose-table:overflow-x-auto prose-a:text-accent prose-a:break-all"
+                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                        />
+                      ) : null}
 
                       {/* Action Bar for AI response */}
                       <div className="flex items-center gap-2 mt-2 pt-2 border-t border-edge/60 text-[11px] text-muted">
@@ -572,28 +605,42 @@ export function ChatView({
           })
         )}
 
-        {/* Live Streaming Delta */}
-        {streamingReply && (
+        {/* Live Streaming Delta & Live Tool Actions */}
+        {(streamingReply || (verboseMode && streamingTools && streamingTools.length > 0)) && (
           <div className="flex gap-2.5 sm:gap-3 max-w-4xl mx-auto w-full min-w-0 justify-start">
-            <div className={`w-8 h-8 rounded-[10px] border flex items-center justify-center shrink-0 mt-0.5 animate-pulse ${
-              isAdmin 
-                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' 
-                : 'bg-accent/20 border-accent/40 text-accent'
-            }`}>
-              {isAdmin ? <Terminal className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+            <div className="w-8 h-8 rounded-[10px] overflow-hidden border border-accent/40 shrink-0 mt-0.5 ring-2 ring-accent/30 animate-pulse">
+              <img src={rodrigoIcon} alt="Rodrigo" className="w-full h-full object-cover" />
             </div>
             <div className="rounded-[16px] px-3.5 sm:px-4 py-2.5 sm:py-3 max-w-[92%] sm:max-w-[85%] min-w-0 text-xs sm:text-sm bg-panel border border-accent/40 text-ink rounded-tl-none shadow-v2-md break-words [overflow-wrap:anywhere]">
-              <div
-                className="prose prose-invert prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] prose-pre:bg-sunken prose-pre:border prose-pre:border-edge prose-pre:rounded-[10px] prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:whitespace-pre prose-code:break-words prose-table:block prose-table:max-w-full prose-table:overflow-x-auto prose-a:text-accent prose-a:break-all"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingReply) }}
-              />
-              <span className="inline-block w-2 h-4 bg-accent ml-1 animate-ping" />
+              {/* Live Streaming Tools if Verbose Mode is enabled */}
+              {verboseMode && streamingTools && streamingTools.length > 0 && (
+                <div className="space-y-1 mb-2.5">
+                  {streamingTools.map((tool, tIdx) => (
+                    <ToolActionItem key={tIdx} tool={tool} ct={ct} />
+                  ))}
+                </div>
+              )}
+
+              {streamingReply ? (
+                <>
+                  <div
+                    className="prose prose-invert prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] prose-pre:bg-sunken prose-pre:border prose-pre:border-edge prose-pre:rounded-[10px] prose-pre:max-w-full prose-pre:overflow-x-auto prose-pre:whitespace-pre prose-code:break-words prose-table:block prose-table:max-w-full prose-table:overflow-x-auto prose-a:text-accent prose-a:break-all"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingReply) }}
+                  />
+                  <span className="inline-block w-2 h-4 bg-accent ml-1 animate-ping" />
+                </>
+              ) : isGenerating ? (
+                <div className="flex items-center gap-2 text-xs text-accent font-mono py-1">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>{streamingStatus || (isAdmin ? ct.processingAdmin : ct.processingGuest)}</span>
+                </div>
+              ) : null}
             </div>
           </div>
         )}
 
-        {/* Status indicator */}
-        {isGenerating && !streamingReply && (
+        {/* Status indicator (when no streamingReply and no streamingTools) */}
+        {isGenerating && !streamingReply && (!verboseMode || !streamingTools || streamingTools.length === 0) && (
           <div className="flex items-center gap-2 max-w-4xl mx-auto w-full min-w-0 text-xs text-accent font-mono py-2 px-1">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-accent" />
             <span>{streamingStatus || (isAdmin ? ct.processingAdmin : ct.processingGuest)}</span>

@@ -16,6 +16,7 @@ import {
   LogIn,
   Settings
 } from 'lucide-react';
+import rodrigoIcon from '../assets/rodrigo-icon.png';
 
 export function Header({ 
   activeTab, 
@@ -40,12 +41,8 @@ export function Header({
         {/* Left: Brand & Engine status */}
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shadow-lg transition-all ${
-              isAdmin 
-                ? 'bg-gradient-to-tr from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 shadow-emerald-500/20' 
-                : 'bg-gradient-to-tr from-teal-500 via-cyan-400 to-slate-700 text-slate-950 shadow-teal-500/20'
-            }`}>
-              {isAdmin ? <Shield className="w-5 h-5 text-slate-950" /> : <Terminal className="w-5 h-5 text-slate-950" />}
+            <div className="w-9 h-9 rounded-xl overflow-hidden shadow-lg ring-1 ring-white/10 shrink-0">
+              <img src={rodrigoIcon} alt="Ask Rodrigo" className="w-full h-full object-cover" />
             </div>
             <span className="absolute -bottom-1 -right-1 flex h-3 w-3">
               <span className={`pulse-beacon absolute inline-flex h-full w-full rounded-full opacity-75 ${isAdmin ? 'bg-emerald-400' : 'bg-teal-400'}`}></span>

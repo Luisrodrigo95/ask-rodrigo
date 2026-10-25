@@ -34,6 +34,7 @@ export async function executeAgyPrompt(message, options = {}) {
     conversationId,
     onDelta,
     onInit,
+    onToolUpdate,
     timeoutMs = 900000, // 15 minutes per turn
     cwd = AGY_HOME
   } = options;
@@ -114,12 +115,21 @@ export async function executeAgyPrompt(message, options = {}) {
           }
         }
 
-        // Live streaming token deltas
+        // Live streaming token deltas & tool events
         if (ev.event === 'step_update' && ev.step_update) {
           const update = ev.step_update;
           if (update.conversation_id && !assignedConversationId) {
             assignedConversationId = update.conversation_id;
             if (onInit) onInit(update.conversation_id);
+          }
+          if (update.step_type === 'tool' && onToolUpdate) {
+            onToolUpdate({
+              stepIndex: update.step_index,
+              state: update.state,
+              toolName: update.tool_name || (update.tool_info && update.tool_info.name),
+              duration: update.duration_seconds,
+              toolInfo: update.tool_info
+            });
           }
           if (update.text_delta) {
             accumulatedReply += update.text_delta;
@@ -247,11 +257,32 @@ export async function listAgyConversations(limit = 100) {
   }
 }
 
+function cleanToolArgs(args) {
+  if (!args || typeof args !== 'object') return {};
+  const clean = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (typeof v === 'string') {
+      let str = v.trim();
+      if (str.startsWith('"') && str.endsWith('"') && str.length >= 2) {
+        try {
+          str = JSON.parse(str);
+        } catch {
+          str = str.slice(1, -1);
+        }
+      }
+      clean[k] = str;
+    } else {
+      clean[k] = v;
+    }
+  }
+  return clean;
+}
+
 /**
  * Reads and cleans conversation history from a transcript.jsonl file.
  *
  * @param {string} conversationId
- * @returns {Promise<Array<{ role: 'user' | 'assistant', content: string, time: string, stepIndex: number }>>}
+ * @returns {Promise<Array<{ role: 'user' | 'assistant', content: string, time: string, stepIndex: number, tools?: Array<object> }>>}
  */
 export async function getConversationTranscript(conversationId) {
   try {
@@ -267,6 +298,7 @@ export async function getConversationTranscript(conversationId) {
     const fileContent = fs.readFileSync(transcriptPath, 'utf-8');
     const lines = fileContent.trim().split('\n');
     const messages = [];
+    let currentTurnTools = [];
 
     for (const line of lines) {
       if (!line.trim()) continue;
@@ -291,17 +323,57 @@ export async function getConversationTranscript(conversationId) {
               time: item.created_at,
               stepIndex: item.step_index
             });
+            currentTurnTools = [];
           }
-        } else if (item.type === 'PLANNER_RESPONSE' && item.content) {
-          messages.push({
-            role: 'assistant',
-            content: item.content,
-            time: item.created_at,
-            stepIndex: item.step_index
-          });
+        } else if (item.type === 'PLANNER_RESPONSE') {
+          if (item.tool_calls && Array.isArray(item.tool_calls)) {
+            for (const tc of item.tool_calls) {
+              currentTurnTools.push({
+                stepIndex: item.step_index,
+                toolName: tc.name,
+                parameters: cleanToolArgs(tc.args),
+                output: null,
+                state: 'DONE',
+                time: item.created_at
+              });
+            }
+          }
+          if (item.content) {
+            messages.push({
+              role: 'assistant',
+              content: item.content,
+              time: item.created_at,
+              stepIndex: item.step_index,
+              tools: currentTurnTools.length > 0 ? [...currentTurnTools] : undefined
+            });
+            currentTurnTools = [];
+          }
+        } else if (item.type === 'GENERIC') {
+          // Tool execution output
+          if (currentTurnTools.length > 0) {
+            const lastTool = currentTurnTools[currentTurnTools.length - 1];
+            if (!lastTool.output) {
+              lastTool.output = item.content || '';
+              lastTool.state = item.status || 'DONE';
+            }
+          }
         }
       } catch (errLine) {
         // skip malformed line
+      }
+    }
+
+    if (currentTurnTools.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.tools) {
+        lastMsg.tools = currentTurnTools;
+      } else if (!lastMsg || lastMsg.role === 'user') {
+        messages.push({
+          role: 'assistant',
+          content: '',
+          time: new Date().toISOString(),
+          tools: currentTurnTools
+        });
       }
     }
 
